@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>문서 확인</title>
+<style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+        font-family: 'Malgun Gothic', sans-serif;
+        background: #f5f5f5;
+        padding: 16px;
+        color: #333;
+    }
+    .card {
+        max-width: 500px;
+        margin: 20px auto;
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0,0,0,.12);
+        overflow: hidden;
+    }
+    .header {
+        padding: 20px;
+        color: white;
+        text-align: center;
+    }
+    .header.invoice  { background: linear-gradient(135deg,#e65100,#bf360c); }
+    .header.quote    { background: linear-gradient(135deg,#e65100,#bf360c); }
+    .header.receipt  { background: linear-gradient(135deg,#2e7d32,#1b5e20); }
+    .header.statement{ background: linear-gradient(135deg,#1565c0,#0d47a1); }
+    .header.rental   { background: linear-gradient(135deg,#512da8,#311b92); }
+    .header h1 { font-size: 22px; font-weight: 900; letter-spacing: 4px; }
+    .header p  { font-size: 13px; opacity: .85; margin-top: 6px; }
+    .body { padding: 20px; }
+    .receiver-box {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 14px 16px;
+        margin-bottom: 16px;
+        border-left: 4px solid #1a73e8;
+    }
+    .receiver-box .label {
+        font-size: 11px; color: #888;
+        font-weight: bold; margin-bottom: 4px;
+    }
+    .receiver-box .name {
+        font-size: 18px; font-weight: 800; color: #333;
+    }
+    .total-banner {
+        background: linear-gradient(135deg,#e65100,#bf360c);
+        color: white;
+        border-radius: 10px;
+        padding: 16px 20px;
+        margin-bottom: 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .total-banner .t-label { font-size: 13px; font-weight: bold; }
+    .total-banner .t-value { font-size: 24px; font-weight: 900; }
+    .info-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 16px;
+        font-size: 13px;
+    }
+    .info-table tr { border-bottom: 1px solid #f0f0f0; }
+    .info-table td { padding: 10px 8px; }
+    .info-table td:first-child {
+        color: #888; font-weight: bold;
+        width: 80px; white-space: nowrap;
+    }
+    .info-table td:last-child { color: #333; font-weight: 600; }
+    .items-box {
+        background: #fff8f0;
+        border: 1px solid #ffcc80;
+        border-radius: 10px;
+        padding: 14px 16px;
+        margin-bottom: 16px;
+    }
+    .items-box .i-title {
+        font-size: 11px; color: #888;
+        font-weight: bold; margin-bottom: 8px;
+    }
+    .item-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 6px 0;
+        border-bottom: 1px solid #ffecc0;
+        font-size: 13px;
+    }
+    .item-row:last-child { border-bottom: none; }
+    .item-name { color: #333; font-weight: 600; }
+    .item-amt  { color: #e65100; font-weight: 800; }
+    .account-box {
+        background: #e8f5e9;
+        border: 1.5px solid #a5d6a7;
+        border-radius: 10px;
+        padding: 14px 16px;
+        margin-bottom: 16px;
+    }
+    .account-box .a-title {
+        font-size: 11px; color: #2e7d32;
+        font-weight: bold; margin-bottom: 6px;
+    }
+    .account-box .a-value {
+        font-size: 15px; font-weight: 800; color: #1b5e20;
+    }
+    .sender-box {
+        border: 1px solid #e0e0e0;
+        border-radius: 10px;
+        padding: 12px 16px;
+        font-size: 12px;
+        color: #555;
+        margin-bottom: 16px;
+    }
+    .sender-box .s-title {
+        font-size: 11px; color: #888;
+        font-weight: bold; margin-bottom: 6px;
+    }
+    .sender-row {
+        display: flex; gap: 8px;
+        margin-bottom: 3px;
+    }
+    .sender-row .s-label {
+        color: #aaa; min-width: 60px;
+    }
+    .sender-row .s-val { color: #333; font-weight: 600; }
+    .footer {
+        text-align: center;
+        padding: 14px 20px;
+        background: #f8f9fa;
+        font-size: 11px;
+        color: #999;
+        border-top: 1px solid #eee;
+    }
+    .no-data {
+        text-align: center;
+        padding: 60px 20px;
+        color: #999;
+    }
+    .no-data .icon { font-size: 48px; margin-bottom: 12px; }
+    .no-data p { font-size: 14px; line-height: 1.7; }
+    @media print {
+        body { background: white; padding: 0; }
+        .card { box-shadow: none; border-radius: 0; }
+    }
+</style>
+</head>
+<body>
+<div class="card" id="docCard">
+    <div class="no-data">
+        <div class="icon">⏳</div>
+        <p>문서를 불러오는 중입니다...</p>
+    </div>
+</div>
+
+<script>
+// URL 파라미터 파싱
+function getParams() {
+    const p = {};
+    new URLSearchParams(window.location.search).forEach((v, k) => {
+        p[k] = decodeURIComponent(v);
+    });
+    return p;
+}
+
+function escHtml(v) {
+    return String(v || '').replace(/[&<>"']/g,
+        c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function render() {
+    const p = getParams();
+    const card = document.getElementById('docCard');
+
+    // 파라미터가 없으면 안내
+    if (!p.type && !p.total) {
+        card.innerHTML = `
+        <div class="no-data">
+            <div class="icon">📄</div>
+            <p>잘못된 접근입니다.<br>카카오톡 공유 링크로 접속해 주세요.</p>
+        </div>`;
+        return;
+    }
+
+    const typeMap = {
+        invoice:   { label: '청구서',     cls: 'invoice'   },
+        quote:     { label: '견적서',     cls: 'quote'     },
+        receipt:   { label: '영수증',     cls: 'receipt'   },
+        statement: { label: '거래명세서', cls: 'statement' },
+        rental:    { label: '렌탈 청구서',cls: 'rental'    }
+    };
+    const typeInfo = typeMap[p.type] || { label: '문서', cls: 'invoice' };
+    const total    = parseInt(p.total || '0');
+    const items    = p.items ? p.items.split('||') : [];
+
+    // 품목 HTML
+    let itemsHTML = '';
+    if (items.length) {
+        const rows = items.map(it => {
+            const parts = it.split('::');
+            const name  = parts[0] || '';
+            const amt   = parseInt(parts[1] || '0');
+            return `<div class="item-row">
+                <span class="item-name">${escHtml(name)}</span>
+                <span class="item-amt">${amt ? amt.toLocaleString() + '원' : ''}</span>
+            </div>`;
+        }).join('');
+        itemsHTML = `
+        <div class="items-box">
+            <div class="i-title">📦 품목 내역</div>
+            ${rows}
+        </div>`;
+    }
+
+    // 계좌 HTML
+    const accountHTML = p.account ? `
+    <div class="account-box">
+        <div class="a-title">💳 입금 계좌</div>
+        <div class="a-value">${escHtml(p.account)}</div>
+    </div>` : '';
+
+    // 발신자 HTML
+    const senderRows = [
+        p.bizName ? ['상호',   p.bizName] : null,
+        p.bizTel  ? ['전화',   p.bizTel]  : null,
+        p.bizNum  ? ['사업자', p.bizNum]  : null
+    ].filter(Boolean).map(([l, v]) =>
+        `<div class="sender-row">
+            <span class="s-label">${l}</span>
+            <span class="s-val">${escHtml(v)}</span>
+        </div>`
+    ).join('');
+    const senderHTML = senderRows ? `
+    <div class="sender-box">
+        <div class="s-title">🏢 공급자</div>
+        ${senderRows}
+    </div>` : '';
+
+    // 날짜/비고
+    const infoRows = [
+        p.date ? ['날짜', p.date] : null,
+        p.note ? ['비고', p.note] : null
+    ].filter(Boolean).map(([l, v]) =>
+        `<tr><td>${l}</td><td>${escHtml(v)}</td></tr>`
+    ).join('');
+    const infoHTML = infoRows ? `
+    <table class="info-table">${infoRows}</table>` : '';
+
+    card.innerHTML = `
+    <div class="header ${typeInfo.cls}">
+        <h1>${typeInfo.label}</h1>
+        <p>발행일: ${escHtml(p.date || '')}</p>
+    </div>
+    <div class="body">
+        <div class="receiver-box">
+            <div class="label">공급받는자</div>
+            <div class="name">${escHtml(p.receiver || p.name || '고객')} 귀하</div>
+            ${p.phone ? `<div style="font-size:12px;color:#666;margin-top:4px;">
+                📞 ${escHtml(p.phone)}</div>` : ''}
+        </div>
+        <div class="total-banner">
+            <span class="t-label">청구금액</span>
+            <span class="t-value">₩ ${total.toLocaleString()}</span>
+        </div>
+        ${infoHTML}
+        ${itemsHTML}
+        ${accountHTML}
+        ${senderHTML}
+    </div>
+    <div class="footer">
+        이 문서는 고객 관리 시스템에서 발행되었습니다.
+    </div>`;
+
+    // 타이틀 변경
+    document.title = `${typeInfo.label} - ${p.receiver || p.name || '고객'} 귀하`;
+}
+
+render();
+</script>
+</body>
+</html>
