@@ -2307,7 +2307,33 @@ function testKakaoAppKey() {
 }
 
 // ── 카카오 공유 메인 함수 ──
-function shareDocToKakao(type, data) {
+ffunction shareDocToKakao(type, data) {
+    // ★ view.html 공개 뷰어 URL 생성
+    const base = 'https://miraecom1-netizen.github.io/mirae/view.html';
+    const params = new URLSearchParams();
+    params.set('type',     type);
+    params.set('receiver', data.receiver || data.name || '');
+    params.set('total',    data.total    || 0);
+    params.set('date',     data.date     || '');
+    params.set('bizName',  data.bizName  || '');
+    params.set('bizTel',   data.bizTel   || '');
+    params.set('bizNum',   data.bizNum   || '');
+    params.set('account',  data.account  || '');
+    params.set('phone',    data.phone    || '');
+    if (data.note) params.set('note', data.note);
+
+    // 품목 인코딩
+    if (data.itemsArr && data.itemsArr.length) {
+        const itemStr = data.itemsArr
+            .map(it => `${it.name}::${it.amt || 0}`)
+            .join('||');
+        params.set('items', itemStr);
+    } else if (data.items) {
+        params.set('items', `${data.items}::${data.total || 0}`);
+    }
+
+    const viewUrl = `${base}?${params.toString()}`;
+
     const titles = {
         quote:     '📋 견적서',
         invoice:   '💵 청구서',
@@ -2321,9 +2347,8 @@ function shareDocToKakao(type, data) {
     const desc  = [
         data.items   ? `품목: ${data.items}`                            : '',
         data.total   ? `금액: ${Number(data.total).toLocaleString()}원` : '',
-        data.date    ? `날짜: ${data.date}`                             : '',
-        data.bizName ? `발신: ${data.bizName}`                          : '',
-        data.account ? `계좌: ${data.account}`                          : ''
+        data.account ? `계좌: ${data.account}`                          : '',
+        data.bizName ? `발신: ${data.bizName}`                          : ''
     ].filter(Boolean).join('\n');
 
     // ① 카카오 SDK 공유 시도
@@ -2333,15 +2358,14 @@ function shareDocToKakao(type, data) {
                 objectType: 'text',
                 text: `${title}\n\n${desc}`,
                 link: {
-                    mobileWebUrl: 'https://miraecom1-netizen.github.io/mirae/',
-webUrl:       'https://miraecom1-netizen.github.io/mirae/'
-
+                    mobileWebUrl: viewUrl,
+                    webUrl:       viewUrl
                 },
                 buttons: [{
-                    title: '🔗 문서 확인',
+                    title: '📄 문서 확인',
                     link: {
-                        mobileWebUrl: 'https://miraecom1-netizen.github.io/mirae/',
-        webUrl:       'https://miraecom1-netizen.github.io/mirae/'
+                        mobileWebUrl: viewUrl,
+                        webUrl:       viewUrl
                     }
                 }]
             });
@@ -2351,17 +2375,17 @@ webUrl:       'https://miraecom1-netizen.github.io/mirae/'
         }
     }
 
-    // ② fallback: 클립보드 + 안내 팝업
+    // ② fallback: 클립보드 복사 + 팝업
     const fullText = [
         `[${titles[type] || '문서'}]`,
         `수신: ${data.receiver || data.name || ''}`,
         data.items   ? `품목: ${data.items}`                            : '',
         data.total   ? `금액: ${Number(data.total).toLocaleString()}원` : '',
-        data.date    ? `날짜: ${data.date}`                             : '',
+        data.account ? `계좌: ${data.account}`                          : '',
+        data.bizName ? `발신: ${data.bizName}`                          : '',
+        data.bizTel  ? `연락: ${data.bizTel}`                           : '',
         '',
-        data.bizName ? `발신: ${data.bizName}` : '',
-        data.bizTel  ? `연락: ${data.bizTel}`  : '',
-        data.account ? `계좌: ${data.account}` : ''
+        `📄 문서확인: ${viewUrl}`
     ].filter(v => v != null).join('\n');
 
     navigator.clipboard.writeText(fullText)
