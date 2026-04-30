@@ -2349,14 +2349,17 @@ function shareDocToKakao(type, data) {
         data.total   ? `금액: ${Number(data.total).toLocaleString()}원` : '',
         data.account ? `계좌: ${data.account}`                          : '',
         data.bizName ? `발신: ${data.bizName}`                          : ''
-    ].filter(Boolean).join('\n');
+    ].filter(Boolean).join('
+');
 
     // ① 카카오 SDK 공유 시도
     if (initKakaoSDK()) {
         try {
             Kakao.Share.sendDefault({
                 objectType: 'text',
-                text: `${title}\n\n${desc}`,
+                text: `${title}
+
+${desc}`,
                 link: {
                     mobileWebUrl: viewUrl,
                     webUrl:       viewUrl
@@ -2383,13 +2386,13 @@ function shareDocToKakao(type, data) {
         data.total   ? `금액: ${Number(data.total).toLocaleString()}원` : '',
         data.account ? `계좌: ${data.account}`                          : '',
         data.bizName ? `발신: ${data.bizName}`                          : '',
-        data.bizTel  ? `연락: ${data.bizTel}`                           : '',
         '',
         `📄 문서확인: ${viewUrl}`
-    ].filter(v => v != null).join('\n');
+    ].filter(v => v != null && v !== '').join('
+');
 
     navigator.clipboard.writeText(fullText)
-        .then(() => showKakaoSharePopup(fullText, data.phone || ''))
+        .then(() => showKakaoSharePopup(fullText, data.phone || '', viewUrl))
         .catch(() => {
             const ta = document.createElement('textarea');
             ta.value = fullText;
@@ -2397,16 +2400,16 @@ function shareDocToKakao(type, data) {
             ta.select();
             document.execCommand('copy');
             document.body.removeChild(ta);
-            showKakaoSharePopup(fullText, data.phone || '');
+            showKakaoSharePopup(fullText, data.phone || '', viewUrl);
         });
 }
 
 // ── 카카오 공유 안내 팝업 ──
-function showKakaoSharePopup(text, phone) {
+function showKakaoSharePopup(text, phone, viewUrl) {
     document.getElementById('crm-kakao-popup')?.remove();
 
     const rawPhone = String(phone || '').replace(/[^0-9]/g, '');
-    const smsLink  = rawPhone
+    const smsLink = rawPhone
         ? `<a href="sms:${rawPhone}?body=${encodeURIComponent(text)}"
               style="display:block;width:100%;padding:13px;background:#34a853;
                      color:white;border:none;border-radius:10px;font-size:14px;
@@ -2416,17 +2419,8 @@ function showKakaoSharePopup(text, phone) {
            </a>`
         : '';
 
-    const noKeyGuide = !loadKakaoAppKey()
-        ? `<div style="margin-top:10px;padding:10px 12px;background:#fff8e1;
-                       border:1px solid #ffe082;border-radius:8px;
-                       font-size:11px;color:#7a6500;line-height:1.7;">
-               💡 <b>[내 정보] → 카카오 공유 앱키</b>를 등록하면<br>
-               카카오톡 앱으로 바로 공유할 수 있습니다.
-           </div>`
-        : '';
-
     const modal = document.createElement('div');
-    modal.id    = 'crm-kakao-popup';
+    modal.id = 'crm-kakao-popup';
     modal.style.cssText = [
         'position:fixed','inset:0','background:rgba(0,0,0,.65)',
         'z-index:9999999','display:flex','align-items:center',
@@ -2446,7 +2440,7 @@ function showKakaoSharePopup(text, phone) {
                         카카오톡으로 전송
                     </div>
                     <div style="font-size:11px;color:#7a6500;margin-top:2px;">
-                        문서 내용이 클립보드에 복사되었습니다
+                        내용이 복사되었습니다
                     </div>
                 </div>
             </div>
@@ -2456,32 +2450,33 @@ function showKakaoSharePopup(text, phone) {
         </div>
         <div style="padding:18px 20px;">
             <div style="background:#f9f9f9;border:1px solid #e0e0e0;border-radius:10px;
-                        padding:12px 14px;margin-bottom:14px;max-height:140px;overflow-y:auto;">
-                <div style="font-size:11px;color:#888;font-weight:bold;margin-bottom:6px;">
-                    📋 복사된 내용
-                </div>
+                        padding:12px 14px;margin-bottom:14px;max-height:120px;overflow-y:auto;">
                 <pre style="font-size:12px;color:#333;margin:0;font-family:inherit;
                             white-space:pre-wrap;word-break:break-word;">${escapeHtml(text)}</pre>
             </div>
-            <button onclick="
-                try{window.location.href='kakaotalk://';}catch(e){}
+            ${viewUrl ? `
+            <a href="${escapeHtml(viewUrl)}" target="_blank"
+                style="display:block;width:100%;padding:13px;background:#1a73e8;
+                       color:white;border:none;border-radius:10px;font-size:14px;
+                       font-weight:bold;text-align:center;text-decoration:none;
+                       box-sizing:border-box;margin-bottom:8px;">
+                📄 문서 확인 링크 열기
+            </a>` : ''}
+            <button onclick="try{window.location.href='kakaotalk://';}catch(e){}
                 setTimeout(()=>document.getElementById('crm-kakao-popup')?.remove(),1500);"
                 style="width:100%;padding:14px;border:none;border-radius:10px;
                        background:#fee500;color:#3c1e1e;font-size:15px;font-weight:800;
-                       cursor:pointer;margin-bottom:8px;display:flex;
-                       align-items:center;justify-content:center;gap:10px;">
-                <span style="font-size:22px;">💬</span> 카카오톡 열기 → 붙여넣기
+                       cursor:pointer;margin-bottom:8px;">
+                💬 카카오톡 열기 → 붙여넣기
             </button>
             ${smsLink}
-            <button onclick="
-                navigator.clipboard.writeText(${JSON.stringify(text)})
-                    .then(()=>showAlarmToast('📋 다시 복사되었습니다!','success'));"
+            <button onclick="navigator.clipboard.writeText(${JSON.stringify(text)})
+                    .then(()=>showAlarmToast('📋 다시 복사!','success'));"
                 style="width:100%;padding:11px;border:1px solid #fee500;
                        border-radius:10px;background:white;color:#7a6500;
                        font-size:13px;font-weight:bold;cursor:pointer;">
                 📋 다시 복사
             </button>
-            ${noKeyGuide}
         </div>
     </div>`;
 
@@ -13066,6 +13061,7 @@ function openInChrome() {
     }
 })();
 </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
