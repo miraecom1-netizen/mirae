@@ -9156,157 +9156,62 @@ function printQuote(mode='quote'){
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=yes,viewport-fit=cover">
-<title>${mode==='invoice'?'청구서':mode==='statement'?'거래명세서':'견적서'} - ${escapeHtml(safeReceiver)}</title>
+<title>${mode==='invoice'?'청구서':'견적서'} - ${escapeHtml(safeReceiver)}</title>
 <style>${docCSS}</style>
 </head>
 <body>
+<!-- ★ 핵심: 이 툴바 블록이 없으면 버튼이 안 보임 -->
 <div id="doc-toolbar">
     <div class="tb-title">
-        ${mode==='invoice'?'💵 청구서':mode==='statement'?'📄 거래명세서':'🖨️ 견적서'} &nbsp;|&nbsp; ${escapeHtml(safeReceiver)}
+        ${mode==='invoice'?'💵 청구서':'🖨️ 견적서'} | ${escapeHtml(safeReceiver)}
     </div>
     <button class="btn-print" onclick="doPrint()">🖨️ 인쇄</button>
     <button class="btn-pdf" onclick="doPdfSave()">📄 PDF 저장</button>
-    <button class="btn-kakao" id="kakao-share-btn" onclick="requestKakaoShare()">💬 카카오 공유</button>
+    <button onclick="requestKakaoShare()"
+        style="background:#fee500;color:#3c1e1e;border:none;
+               border-radius:8px;padding:10px 16px;
+               font-size:13px;font-weight:800;cursor:pointer;">
+        💬 카카오 공유
+    </button>
     <button class="btn-close" onclick="window.close()">✕ 닫기</button>
 </div>
 ${pHTML}
 <script>
-var _shareData = ${JSON.stringify(kakaoShareData)};
-
-function requestKakaoShare() {
-    var btn = document.getElementById('kakao-share-btn');
-    if(btn){ btn.textContent = '⏳ 처리중...'; btn.disabled = true; }
-
-    var sent = false;
-    try {
-        if(window.opener && !window.opener.closed) {
-            window.opener.postMessage({
-                crmAction: 'shareKakao',
-                type: _shareData.type,
-                data: _shareData
-            }, '*');
-            sent = true;
-        }
-    } catch(e) {}
-
-    if(!sent) {
-        directShare();
-    } else {
-        setTimeout(function(){
-            if(btn){ btn.textContent = '💬 카카오 공유'; btn.disabled = false; }
-        }, 500);
-    }
-}
-
-function directShare() {
-    var d = _shareData;
-
-    // ★ 항상 GitHub Pages URL 사용
-    var base = 'https://miraecom1-netizen.github.io/mirae/view.html';
-    var p = new URLSearchParams();
-    p.set('type',     d.type     || 'quote');
-    p.set('receiver', d.receiver || '');
-    p.set('total',    d.total    || 0);
-    p.set('date',     d.date     || '');
-    p.set('bizName',  d.bizName  || '');
-    p.set('bizTel',   d.bizTel   || '');
-    p.set('account',  d.account  || '');
-    p.set('phone',    d.phone    || '');
-    if (d.items) p.set('items', d.items + '::' + (d.total || 0));
-    var viewUrl = base + '?' + p.toString();
-
-    var typeLabel = d.type==='invoice' ? '청구서'
-                  : d.type==='statement' ? '거래명세서'
-                  : d.type==='receipt' ? '영수증'
-                  : d.type==='rental' ? '렌탈청구서'
-                  : '견적서';
-
-    var lines = [
-        '[' + typeLabel + ']',
-        '수신: ' + d.receiver,
-        d.items   ? '품목: ' + d.items                              : '',
-        d.total   ? '금액: ' + Number(d.total).toLocaleString()+'원': '',
-        d.date    ? '날짜: ' + d.date                               : '',
-        d.bizName ? '발신: ' + d.bizName                            : '',
-        d.account ? '계좌: ' + d.account                            : '',
-        '',
-        '📄 문서확인: ' + viewUrl
-    ].filter(Boolean).join('\n');
-
-    var rawPhone = String(d.phone||'').replace(/[^0-9]/g,'');
-    var smsHref  = rawPhone
-        ? 'sms:' + rawPhone + '?body=' + encodeURIComponent(lines)
-        : '';
-
-    function doCopy(cb){
-        if(navigator.clipboard && navigator.clipboard.writeText){
-            navigator.clipboard.writeText(lines).then(cb).catch(function(){
-                fallbackCopy(); cb();
-            });
-        } else { fallbackCopy(); cb(); }
-    }
-    function fallbackCopy(){
-        var ta = document.createElement('textarea');
-        ta.value = lines;
-        ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0;';
-        document.body.appendChild(ta);
-        ta.select();
-        try { document.execCommand('copy'); } catch(e) {}
-        document.body.removeChild(ta);
-    }
-
-    doCopy(function(){
-        var smsBtn = smsHref
-            ? '<a href="' + smsHref + '" style="display:block;width:100%;padding:13px;background:#34a853;color:white;border:none;border-radius:10px;font-size:14px;font-weight:bold;text-align:center;text-decoration:none;box-sizing:border-box;margin-bottom:8px;">💬 문자(SMS)로 전송</a>'
-            : '';
-
-        var old = document.getElementById('_kshare');
-        if(old) old.remove();
-
-        var overlay = document.createElement('div');
-        overlay.id = '_kshare';
-        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:sans-serif;';
-        overlay.innerHTML =
-            '<div style="background:white;border-radius:18px;width:min(380px,96vw);overflow:hidden;box-shadow:0 16px 50px rgba(0,0,0,.3);">'
-            + '<div style="background:#fee500;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;">'
-            + '<div style="display:flex;align-items:center;gap:10px;">'
-            + '<span style="font-size:26px;">💬</span>'
-            + '<div><div style="font-size:15px;font-weight:800;color:#3c1e1e;">카카오톡으로 전송</div>'
-            + '<div style="font-size:11px;color:#7a6500;">내용이 클립보드에 복사되었습니다</div></div></div>'
-            + '<button onclick="document.getElementById(\'_kshare\').remove()" style="background:rgba(0,0,0,.1);border:none;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:16px;color:#3c1e1e;">✕</button>'
-            + '</div>'
-            + '<div style="padding:18px;">'
-            + '<button onclick="try{window.location.href=\'kakaotalk://\';}catch(e){}setTimeout(function(){var m=document.getElementById(\'_kshare\');if(m)m.remove();},1500);" style="width:100%;padding:14px;background:#fee500;color:#3c1e1e;border:none;border-radius:10px;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:8px;">💬 카카오톡 열기 → 붙여넣기</button>'
-            + smsBtn
-            + '<button onclick="navigator.clipboard.writeText(' + JSON.stringify(lines) + ').then(function(){alert(\'다시 복사되었습니다!\');});" style="width:100%;padding:11px;border:1px solid #fee500;border-radius:10px;background:white;color:#7a6500;font-size:13px;font-weight:bold;cursor:pointer;">📋 다시 복사</button>'
-            + '</div></div>';
-
-        overlay.addEventListener('click', function(e){
-            if(e.target===overlay) overlay.remove();
-        });
-        document.body.appendChild(overlay);
-
-        var btn = document.getElementById('kakao-share-btn');
-        if(btn){ btn.textContent='💬 카카오 공유'; btn.disabled=false; }
-    });
-}
-
+// 인쇄
 function doPrint(){
-    (function(){ if(window.AndroidPrint){window.AndroidPrint.print();}else{window.print();} })();
+    (function(){ if(window.AndroidPrint){window.AndroidPrint.print();}
+    else{window.print();} })();
 }
+// PDF 저장
 function doPdfSave(){
     var origTitle = document.title;
     document.title = '${fileName.replace('.pdf','')}';
-    (function(){ if(window.AndroidPrint){window.AndroidPrint.print();}else{window.print();} })();
+    doPrint();
     setTimeout(function(){ document.title = origTitle; }, 2000);
 }
+// 카카오 공유 - 부모창 함수 호출
+function requestKakaoShare(){
+    if(window.opener && !window.opener.closed
+       && typeof window.opener.shareDocToKakao === 'function'){
+        window.opener.shareDocToKakao('${mode}', {
+            receiver: ${JSON.stringify(receiver)},
+            items: ${JSON.stringify(summarizeItemsForTax(kakaoItems))},
+            total: ${total},
+            date: ${JSON.stringify(issDate)},
+            bizName: ${JSON.stringify(String(biz.bizName||''))},
+            account: ${JSON.stringify(String(accountInfo||''))},
+            phone: ''
+        });
+    } else {
+        alert('카카오 공유를 사용하려면 팝업을 허용하고 메인 화면에서 다시 시도하세요.');
+    }
+}
 <\/script>
-</body>
-</html>`;
+</body></html>`;
 
     const pop = window.open('','_blank') || window.open('','qw','width=900,height=1000,scrollbars=yes,resizable=yes');
     if(!pop){
-        alert('인쇄/PDF 창을 열 수 없습니다. 팝업 허용 후 다시 시도해 주세요.');
+        alert('팝업 허용 후 다시 시도해 주세요.');
         return;
     }
     pop.document.write(fullHTML);
@@ -12820,68 +12725,6 @@ function _showPrintGuidePopup() {
 }
 
 
-// ③ 기존 printQuote 함수 앞에 WebView 분기 패치
-const _origPrintQuote = printQuote;
-printQuote = function(mode = 'quote') {
-    if (isAndroidWebView()) {
-        showPrintModal();
-        return;
-    }
-    _origPrintQuote(mode);
-};
-
-// ④ 기존 openPrintWindow 함수 앞에 WebView 분기 패치
-const _origOpenPrintWindow = openPrintWindow;
-openPrintWindow = function(serviceIdx, printType, titleOverride) {
-    if (isAndroidWebView()) {
-        showPrintModal();
-        return;
-    }
-    _origOpenPrintWindow(serviceIdx, printType, titleOverride);
-};
-
-// ⑤ 기존 printCustomerUnpaidBatch 함수 앞에 WebView 분기 패치
-const _origPrintCustomerUnpaidBatch = printCustomerUnpaidBatch;
-printCustomerUnpaidBatch = function() {
-    if (isAndroidWebView()) {
-        showPrintModal();
-        return;
-    }
-    _origPrintCustomerUnpaidBatch();
-};
-
-// ⑥ 기존 printRentalInvoiceCore 함수 앞에 WebView 분기 패치
-const _origPrintRentalInvoiceCore = printRentalInvoiceCore;
-printRentalInvoiceCore = function(r, key, unpaidOnly) {
-    if (isAndroidWebView()) {
-        showPrintModal();
-        return;
-    }
-    _origPrintRentalInvoiceCore(r, key, unpaidOnly);
-};
-
-// ⑦ 기존 printMultipleRentalInvoices 함수 앞에 WebView 분기 패치
-const _origPrintMultipleRentalInvoices = printMultipleRentalInvoices;
-printMultipleRentalInvoices = function(rentalList) {
-    if (isAndroidWebView()) {
-        showPrintModal();
-        return;
-    }
-    _origPrintMultipleRentalInvoices(rentalList);
-};
-
-// ⑧ 사진대지 인쇄도 패치
-const _origPrintQuotePhotoSheet = printQuotePhotoSheet;
-printQuotePhotoSheet = function(source = null) {
-    if (isAndroidWebView()) {
-        showPrintModal();
-        return;
-    }
-    _origPrintQuotePhotoSheet(source);
-};
-
-console.log('[WebView 패치] 인쇄 함수 WebView 분기 적용 완료');
-
 
 </script>
 
@@ -13067,24 +12910,6 @@ function openInChrome() {
         window.open(url, '_blank');
     }
 }
-
-(function() {
-    var originalPrint = window.print.bind(window);
-    window.print = function() {
-        var ua = navigator.userAgent || '';
-        var isWebView = /wv/.test(ua) || typeof window.AndroidPrint !== 'undefined';
-        if (isWebView) {
-            // WebView에서는 크롬으로 이동
-            openInChrome();
-            return;
-        }
-        try {
-            originalPrint();
-        } catch(e) {
-            openInChrome();
-        }
-    };
-})();
 </script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script>
@@ -13100,6 +12925,8 @@ function openInChrome() {
     }
 })();
 </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
