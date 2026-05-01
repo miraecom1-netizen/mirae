@@ -1537,6 +1537,10 @@
             onclick="printInvoice()">
         💵 청구서 인쇄/PDF
     </button>
+    <button style="background:#00897b;color:white;flex:2;min-width:170px;font-size:14px;"
+            onclick="printStatement()">
+        📄 거래명세서 인쇄/PDF
+    </button>
     <button id="btn-quote-save"
             style="background:var(--success);color:white;flex:1;min-width:120px;"
             onclick="saveQuoteHistory('quote')">
@@ -2224,6 +2228,56 @@ function initKakaoSDK() {
     }
 })();
 
+
+// ── 견적서 카카오 공유 함수 ──
+function shareQuoteKakao(quoteUrl, receiverName, totalAmt) {
+    const key = loadKakaoAppKey();
+
+    if (!window.Kakao) {
+        alert('카카오 SDK가 로드되지 않았습니다. 페이지를 새로고침해 주세요.');
+        return false;
+    }
+
+    if (!key) {
+        alert('카카오 JavaScript 앱키를 먼저 설정해 주세요.');
+        return false;
+    }
+
+    try {
+        if (!Kakao.isInitialized()) {
+            Kakao.init(key);
+        }
+
+        Kakao.Share.sendDefault({
+            objectType: 'feed',
+            content: {
+                title: '📋 견적서 확인 요청',
+                description: (receiverName || '고객') + ' 귀하 · 금액: ₩' + Number(totalAmt || 0).toLocaleString(),
+                imageUrl: 'https://miraecom1-netizen.github.io/mirae/og-image.png',
+                link: {
+                    mobileWebUrl: quoteUrl,
+                    webUrl: quoteUrl,
+                },
+            },
+            buttons: [
+                {
+                    title: '📄 견적서 확인하기',
+                    link: {
+                        mobileWebUrl: quoteUrl,
+                        webUrl: quoteUrl,
+                    },
+                },
+            ],
+        });
+
+        return true;
+    } catch (e) {
+        console.warn('[카카오 공유] shareQuoteKakao 실패:', e);
+        alert('카카오톡 공유에 실패했습니다. 앱키와 도메인 설정을 확인해 주세요.');
+        return false;
+    }
+}
+
 // ── 앱키 상태 UI 업데이트 ──
 function updateKakaoKeyStatus(key, message, type) {
     const el = document.getElementById('kakao-key-status');
@@ -2378,37 +2432,12 @@ function shareDocToKakao(type, data) {
         }
     }
 
-    // ★ fallback: 클립보드 복사 + 팝업
-    const fullText = [
-        `[${titles[type] || '문서'}]`,
-        `수신: ${data.receiver || data.name || ''}`,
-        data.items   ? `품목: ${data.items}`                            : '',
-        data.total   ? `금액: ${Number(data.total).toLocaleString()}원` : '',
-        data.account ? `계좌: ${data.account}`                          : '',
-        data.bizName ? `발신: ${data.bizName}`                          : '',
-        '',
-        `📄 문서확인 링크: ${viewUrl}`
-    ].filter(v => v !== null && v !== '').join('\n');
-
-    const copyAndShow = () => showKakaoSharePopup(fullText, data.phone || '', viewUrl);
-
-    if (navigator.clipboard) {
-        navigator.clipboard.writeText(fullText).then(copyAndShow).catch(() => {
-            const ta = document.createElement('textarea');
-            ta.value = fullText;
-            document.body.appendChild(ta); ta.select();
-            document.execCommand('copy');
-            document.body.removeChild(ta);
-            copyAndShow();
-        });
-    } else {
-        const ta = document.createElement('textarea');
-        ta.value = fullText;
-        document.body.appendChild(ta); ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-        copyAndShow();
-    }
+    // ★ 기존 클립보드 복사 대신 카카오 공유 함수 사용
+    shareQuoteKakao(
+        viewUrl,
+        data.receiver || data.name || '고객',
+        data.total || 0
+    );
 }
 
 // ── 카카오 공유 안내 팝업 ──
@@ -8974,7 +9003,7 @@ function closeQuoteHistoryAc(){const box=document.getElementById('quote-history-
 function getQuoteHistoryDocType(q){if(!q)return'quote';return(q.docType==='invoice'||q.type==='invoice'||q.mode==='invoice')?'invoice':(q.docType==='statement'||q.type==='statement'||q.mode==='statement')?'statement':'quote';}
 function getQuoteHistoryDocTitle(docType){return docType==='invoice'?'청구서':docType==='statement'?'거래명세서':'견적서';}
 function getQuoteHistoryKakaoLabel(docType){return docType==='invoice'?'💬청구서 카카오':docType==='statement'?'💬거래명세서 카카오':'💬견적서 카카오';}
-function getQuoteHistoryPrintLabel(docType){return docType==='invoice'?'🖨️청구서/PDF':docType==='statement'?'🖨️거래명세/PDF':'🖨️견적/PDF';}
+function getQuoteHistoryPrintLabel(docType){return docType==='invoice'?'🖨️청구서/PDF':docType==='statement'?'🖨️거래명세서/PDF':'🖨️견적/PDF';}
 function updateQuoteSaveButtonState(){const quoteBtn=document.getElementById('btn-quote-save');const invoiceBtn=document.getElementById('btn-invoice-save');const statementBtn=document.getElementById('btn-statement-save');const cancelBtn=document.getElementById('btn-quote-edit-cancel');const status=document.getElementById('quote-edit-status');const isEditing=editingQuoteIndex!==null&&editingQuoteIndex!==undefined&&quotes[editingQuoteIndex];if(quoteBtn)quoteBtn.textContent=isEditing?'💾 견적수정저장':'💾 견적저장';if(invoiceBtn)invoiceBtn.textContent=isEditing?'💾 청구수정저장':'💾 청구저장';if(statementBtn)statementBtn.textContent=isEditing?'💾 거래명세서수정저장':'💾 거래명세서저장';if(cancelBtn)cancelBtn.style.display=isEditing?'':'none';if(status){status.style.display=isEditing?'inline-flex':'none';status.textContent=isEditing?`수정 모드 · No.${quotes[editingQuoteIndex].no||editingQuoteIndex+1}`:'';}}
 function cancelQuoteEdit(){if(!confirm('현재 견적 수정 모드를 종료하고 새 견적 작성 상태로 돌아가시겠습니까?'))return;resetQuoteForm(true);}
 function resetQuoteForm(skipConfirm=false){if(!skipConfirm&&!confirm("초기화하시겠습니까?"))return;document.getElementById('quoteItemBody').innerHTML='';quoteRowId=0;selectedQuoteCustomerId=null;editingQuoteIndex=null;['q-issue-date','q-valid','q-receiver','q-receiver-tel','q-receiver-addr','q-title','q-note'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});if(document.getElementById('q-account-select'))document.getElementById('q-account-select').value='';updateQuoteAccountOptions('');document.getElementById('q-issue-date').value=getKoreanDate();document.querySelector('input[name="q-vat-type"][value="included"]').checked=true;addQuoteRow();addQuoteRow();addQuoteRow();recalcQuote();renderQuoteUnpaidSection();clearQuotePhotoSheet(true);closeQuoteAc();closeQuoteHistoryAc();syncQuotePhotoSummary();updateQuoteSaveButtonState();isFormDirty=false;}
@@ -8985,6 +9014,7 @@ function loadQuoteToForm(idx){const q=quotes[idx];if(!q)return;editingQuoteIndex
 function deleteQuote(idx){if(!confirm("삭제?"))return;quotes.splice(idx,1);quotes.forEach((q,i)=>q.no=i+1);if(editingQuoteIndex===idx)editingQuoteIndex=null;else if(editingQuoteIndex!==null&&idx<editingQuoteIndex)editingQuoteIndex--;syncLocalData();renderQuoteHistory();updateQuoteSaveButtonState();}
 function printQuoteById(idx){const q=quotes[idx];if(!q)return;loadQuoteToForm(idx);setTimeout(()=>printQuote(getQuoteHistoryDocType(q)),200);}
 function printInvoice(){const titleEl=document.getElementById('q-title');if(titleEl)titleEl.value='청구서';printQuote('invoice');}
+function printStatement(){const titleEl=document.getElementById('q-title');if(titleEl)titleEl.value='거래명세서';printQuote('statement');}
 
 function printQuote(mode='quote'){
     const biz=(myBizInfo[selectedQuoteBiz]&&myBizInfo[selectedQuoteBiz].bizName)?myBizInfo[selectedQuoteBiz]:myBizInfo.biz1;
@@ -9007,36 +9037,28 @@ function printQuote(mode='quote'){
     }
     for(let i=rowNo;i<10;i++)rowsHTML+='<tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>';
     let tax=0,total=0;
-    if(vatType==='included'){total=supply;tax=Math.round(total/1.1*0.1);supply=total-tax;}
+    if(vatType==='included'){total=supply;tax=Math.round(total/1.1*0.1);supply=total-Math.round(tax);}
     else if(vatType==='excluded'){tax=Math.round(supply*0.1);total=supply+tax;}
     else total=supply;
     const bigTitle=(mode==='invoice')?'청 &nbsp; 구 &nbsp; 서':(mode==='statement'?'거 &nbsp; 래 &nbsp; 명 &nbsp; 세 &nbsp; 서':'견 &nbsp; 적 &nbsp; 서');
     const bannerText=(mode==='invoice')?'청구금액':'합계금액';
     const sealHTML=biz.seal?`<img src="${biz.seal}" class="biz-seal-inline">`:'';
 
-    const safeReceiver = String(receiver||'').replace(/[\/\:*?"<>|]/g,'').trim() || '문서';
-    const fileName = `${mode==='invoice'?'청구서':mode==='statement'?'거래명세서':'견적서'}_${safeReceiver}_${issDate}.pdf`;
-
-    const receiverPhone = (() => {
-        const telVal = document.getElementById('q-receiver-tel')?.value.trim() || '';
-        if (telVal) return telVal;
-        const matched = customers.find(c =>
-            c.name === receiver ||
-            (telVal && String(c.phone||'').replace(/[^0-9]/g,'') === telVal.replace(/[^0-9]/g,''))
-        );
-        return matched?.phone || '';
-    })();
-
     const kakaoShareData = {
-        type:     mode,
+        type: mode,
         receiver: receiver,
-        items:    summarizeItemsForTax(kakaoItems),
-        total:    total,
-        date:     issDate,
-        bizName:  String(biz.bizName||''),
-        bizTel:   String(biz.tel||biz.mobile||''),
-        account:  String(accountInfo||''),
-        phone:    receiverPhone
+        items: summarizeItemsForTax(kakaoItems),
+        total: total,
+        date: issDate,
+        bizName: String(biz.bizName||''),
+        bizTel: String(biz.tel||biz.mobile||''),
+        account: String(accountInfo||''),
+        phone: (() => {
+            const telVal = document.getElementById('q-receiver-tel')?.value.trim() || '';
+            if (telVal) return telVal;
+            const matched = customers.find(c => c.name === receiver);
+            return matched?.phone || '';
+        })()
     };
 
     const pHTML=`
@@ -9046,21 +9068,32 @@ function printQuote(mode='quote'){
         <div class="q-head-right">작성일자 : <b>${issDate}</b></div>
       </div>
       <div class="q-parties">
-        <table class="q-party-table">
-          <tr><th colspan="2" style="background:#e3f2fd!important;-webkit-print-color-adjust:exact;">공 급 받 는 자</th></tr>
-          <tr><th>상호/성명</th><td><b>${receiver}</b> 귀하</td></tr>
-          <tr><th>연락처</th><td>${document.getElementById('q-receiver-tel').value||''}</td></tr>
-          <tr><th>주소</th><td>${document.getElementById('q-receiver-addr').value||''}</td></tr>
-          <tr><th>건 명</th><td>${title}</td></tr>
-        </table>
-        <div style="position:relative;flex:1;">
+        <div class="q-party-half">
+          <table class="q-party-table">
+            <colgroup>
+              <col style="width:64px;">
+              <col style="width:auto;">
+            </colgroup>
+            <tr><th colspan="2" class="party-header receiver-header">공 급 받 는 자</th></tr>
+            <tr><th>상호/성명</th><td><b>${receiver}</b> 귀하</td></tr>
+            <tr><th>연락처</th><td>${document.getElementById('q-receiver-tel').value||'　'}</td></tr>
+            <tr><th>주소</th><td>${document.getElementById('q-receiver-addr').value||'　'}</td></tr>
+            <tr><th>건&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;명</th><td>${title}</td></tr>
+            <tr><th>&nbsp;</th><td>　</td></tr>
+          </table>
+        </div>
+        <div class="q-party-half">
           <table class="q-party-table q-supplier-table">
-            <tr><th colspan="2" style="background:#fff3e0!important;-webkit-print-color-adjust:exact;">공 급 자</th></tr>
-            <tr><th>등록번호</th><td><b>${biz.bizNum}</b></td></tr>
-            <tr><th>상호 / 대표자</th><td><div class="q-biz-inline"><span class="q-biz-name">${biz.bizName}</span><span class="q-biz-rep">${biz.repName}</span>${sealHTML}</div></td></tr>
-            <tr><th>주소</th><td>${biz.address}</td></tr>
-            <tr><th>업태/종목</th><td>${biz.bizType} / ${biz.bizItem}</td></tr>
-            <tr><th>전화</th><td>${biz.tel}</td></tr>
+            <colgroup>
+              <col style="width:64px;">
+              <col style="width:auto;">
+            </colgroup>
+            <tr><th colspan="2" class="party-header supplier-header">공 급 자</th></tr>
+            <tr><th>등록번호</th><td><b>${biz.bizNum||'　'}</b></td></tr>
+            <tr><th>상호/대표자</th><td><div class="q-biz-inline"><span class="q-biz-name">${biz.bizName||'　'}</span><span class="q-biz-rep">${biz.repName||'　'}</span>${sealHTML}</div></td></tr>
+            <tr><th>주&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;소</th><td>${biz.address||'　'}</td></tr>
+            <tr><th>업태/종목</th><td>${biz.bizType||'　'} / ${biz.bizItem||'　'}</td></tr>
+            <tr><th>전&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;화</th><td>${biz.tel||'　'}</td></tr>
           </table>
         </div>
       </div>
@@ -9080,138 +9113,251 @@ function printQuote(mode='quote'){
       ${(noteText||accountInfo)?`<div class="q-doc-footer">${noteText?`<div class="q-doc-footer-row"><span class="label">비고</span><span class="value">${noteText}</span></div>`:''}${accountInfo?`<div class="q-doc-footer-row account"><span class="label">입금계좌</span><span class="value">${accountInfo}</span></div>`:''}</div>`:''}
     </div>`;
 
-    const docCSS = `
-    @page{size:A4 portrait;margin:12mm}
-    *{box-sizing:border-box}
-    body{font-family:'Malgun Gothic','Dotum',sans-serif;font-size:13px;margin:0;padding:13px}
-    .q-wrap{max-width:780px;margin:0 auto;}
-    .q-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:11px;border-bottom:3px solid #e65100;padding-bottom:7px;}
-    .q-title-txt{font-size:32px;font-weight:900;letter-spacing:12px;color:#e65100;}
-    .q-head-right{font-size:13px;}
-    .q-parties{display:flex;gap:11px;margin-bottom:11px;font-size:12px;}
-    .q-party-table{flex:1;border-collapse:collapse;}
-    .q-party-table th,.q-party-table td{border:1px solid #ccc;padding:5px 7px;}
-    .q-party-table th{background:#f9f9f9!important;-webkit-print-color-adjust:exact;}
-    .q-total-banner{background:#e65100!important;-webkit-print-color-adjust:exact;color:#fff;display:flex;justify-content:space-between;align-items:center;padding:9px 16px;border-radius:6px;margin-bottom:9px;font-size:14px;font-weight:bold}
-    .q-total-num{font-size:20px;font-weight:900;}
-    .q-item-table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:9px;}
-    .q-item-table th{background:#fff3e0!important;-webkit-print-color-adjust:exact;border:1px solid #ccc;padding:7px 4px;}
-    .q-item-table td{border:1px solid #ddd;padding:6px 4px;text-align:center;height:26px;}
-    .q-foot-row td{background:#fafafa!important;}
-    .q-foot-total td{background:#fff3e0!important;border-top:2px solid #e65100!important;}
-    .txt-left{text-align:left;padding-left:8px;}.txt-right{text-align:right;padding-right:8px;}
-    .q-biz-inline{display:flex;align-items:center;justify-content:flex-start;gap:6px;flex-wrap:nowrap;}
-    .q-biz-inline .q-biz-name,.q-biz-inline .q-biz-rep{font-weight:bold;}
-    .biz-seal-inline{width:52px;max-height:52px;object-fit:contain;opacity:.9;flex-shrink:0;}
-    .q-doc-footer{margin-top:10px;border:1px solid #f1c7a2;background:#fff8f3;border-radius:8px;padding:10px 12px;}
-    .q-doc-footer-row{display:flex;gap:10px;align-items:flex-start;font-size:12px;line-height:1.6;}
-    .q-doc-footer-row+.q-doc-footer-row{margin-top:6px;}
-    .q-doc-footer-row .label{min-width:64px;font-weight:bold;color:#a14b00;}
-    .q-doc-footer-row.account .value{font-size:14px;font-weight:bold;color:#b71c1c;}
-    html{-webkit-text-size-adjust:100%;print-color-adjust:exact;-webkit-print-color-adjust:exact;}
-    img{max-width:100%;height:auto;}
-    @media screen and (max-width:768px){
-        @page{size:auto;margin:8mm;}
-        body{padding:10px;font-size:12px;}
-        .q-wrap{max-width:100%;width:100%;}
-        .q-head{flex-direction:column;align-items:flex-start;gap:6px;}
-        .q-title-txt{font-size:24px;letter-spacing:6px;}
-        .q-head-right{font-size:12px;}
-        .q-parties{flex-direction:column;gap:8px;}
-        .q-party-table{width:100%;table-layout:fixed;}
-        .q-party-table th,.q-party-table td,.q-item-table th,.q-item-table td{font-size:11px;padding:6px 4px;word-break:break-word;}
-        .q-total-banner{flex-direction:column;align-items:flex-start;gap:4px;padding:8px 10px;}
-        .q-total-num{font-size:18px;}
-        .q-item-table{table-layout:fixed;}
-        .q-biz-inline{flex-wrap:wrap;gap:4px;}
-        .biz-seal-inline{width:36px;max-height:36px;}
-        .q-doc-footer-row{flex-direction:column;gap:2px;}
-        .q-doc-footer-row .label{min-width:0;}
-    }
-    #doc-toolbar{
-        position:sticky;top:0;z-index:9999;
-        background:white;border-bottom:2px solid #e65100;
-        padding:10px 14px;
-        display:flex;gap:8px;align-items:center;flex-wrap:wrap;
-    }
-    #doc-toolbar .tb-title{
-        font-size:14px;font-weight:bold;color:#e65100;flex:1;min-width:120px;
-    }
-    #doc-toolbar button{
-        border:none;border-radius:8px;padding:9px 14px;
-        font-size:13px;font-weight:bold;cursor:pointer;
-        display:flex;align-items:center;gap:5px;
-    }
-    .btn-print{background:#1a73e8;color:white;}
-    .btn-pdf{background:#e65100;color:white;}
-    .btn-kakao{background:#fee500;color:#3c1e1e;}
-    .btn-close{background:#f1f3f4;color:#333;}
-    @media print{
-        #doc-toolbar{display:none!important;}
-        body{padding:0;}
-    }`;
+    const safeReceiver = String(receiver||'').replace(/[\\/:*?"<>|]/g,'').trim() || '문서';
+    const kakaoDataJson = JSON.stringify(kakaoShareData).replace(/<\/script>/gi,'<\\/script>');
 
     const fullHTML = `<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=yes,viewport-fit=cover">
-<title>${mode==='invoice'?'청구서':'견적서'} - ${escapeHtml(safeReceiver)}</title>
-<style>${docCSS}</style>
+<title>${mode==='invoice'?'청구서':mode==='statement'?'거래명세서':'견적서'} - ${escapeHtml(safeReceiver)}</title>
+<style>
+@page{size:A4 portrait;margin:12mm}
+*{box-sizing:border-box}
+body{font-family:'Malgun Gothic','Dotum',sans-serif;font-size:13px;margin:0;padding:0;color:#111;background:#fff;}
+
+/* ── 툴바 ── */
+#doc-toolbar{
+    position:fixed;top:0;left:0;right:0;
+    background:white;border-bottom:2px solid #e65100;
+    padding:8px 14px;
+    display:flex;gap:6px;align-items:center;flex-wrap:wrap;
+    z-index:9999;
+    min-height:52px;
+}
+#doc-toolbar .toolbar-title{
+    font-size:13px;font-weight:bold;color:#e65100;
+    flex:1;min-width:80px;white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis;
+}
+#doc-toolbar button{
+    border:none;border-radius:7px;
+    padding:8px 14px;font-size:13px;font-weight:bold;
+    cursor:pointer;white-space:nowrap;flex-shrink:0;
+}
+.btn-print{background:#1a73e8;color:white;}
+.btn-kakao{background:#fee500;color:#3c1e1e;}
+.btn-close{background:#f1f3f4;color:#333;border:1px solid #ddd;}
+
+/* ── 문서 본문 ── */
+#doc-content{margin-top:58px;padding:16px 20px 20px;}
+
+/* ── 문서 래퍼 ── */
+.q-wrap{max-width:780px;margin:0 auto;}
+
+/* ── 헤더 ── */
+.q-head{
+    display:flex;justify-content:space-between;align-items:flex-end;
+    margin-bottom:11px;border-bottom:3px solid #e65100;padding-bottom:7px;
+}
+.q-title-txt{font-size:28px;font-weight:900;letter-spacing:10px;color:#e65100;}
+.q-head-right{font-size:12px;white-space:nowrap;}
+
+/* ── 공급자/수신자 영역 ── */
+.q-parties{
+    display:flex;gap:8px;margin-bottom:11px;
+    width:100%;
+}
+.q-party-half{
+    flex:1;min-width:0;width:50%;
+    display:flex;flex-direction:column;
+}
+
+/* ── 당사자 테이블 (핵심 수정) ── */
+.q-party-table{
+    width:100%;
+    border-collapse:collapse;
+    table-layout:fixed;   /* ★ 고정 레이아웃 */
+    height:100%;
+}
+.q-party-table th,
+.q-party-table td{
+    border:1px solid #bbb;
+    padding:6px 8px;
+    font-size:12px;
+    vertical-align:middle;
+    word-break:break-all;
+    overflow:hidden;
+}
+/* 라벨 열 고정 너비 */
+.q-party-table th{
+    background:#f5f5f5!important;
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;
+    white-space:nowrap;
+    font-weight:bold;
+    text-align:center;
+}
+.q-party-table th:not(.party-header){
+    width:64px;          /* 라벨 열 축소 */
+    min-width:64px;
+}
+/* 값 열 나머지 전체 */
+.q-party-table td{
+    width:auto;
+    min-height:28px;
+    line-height:1.45;
+}
+/* 빈 셀도 높이 유지 */
+.q-party-table td:empty::after,
+.q-party-table td b:empty::after{
+    content:'\\00a0';   /* non-breaking space */
+}
+
+/* 헤더 행 */
+.party-header{
+    text-align:center;font-size:13px;font-weight:900;
+    padding:7px 5px;letter-spacing:4px;
+    border:1px solid #bbb;
+    width:auto!important;
+    min-width:0!important;
+}
+.receiver-header{
+    background:#e3f2fd!important;
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;
+    color:#0d47a1;
+}
+.supplier-header{
+    background:#fff3e0!important;
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;
+    color:#bf360c;
+}
+
+/* ── 합계 배너 ── */
+.q-total-banner{
+    background:#e65100!important;
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;
+    color:#fff;
+    display:flex;justify-content:space-between;align-items:center;
+    padding:9px 16px;border-radius:6px;margin-bottom:9px;
+    font-size:14px;font-weight:bold;
+}
+.q-total-num{font-size:20px;font-weight:900;}
+
+/* ── 품목 테이블 ── */
+.q-item-table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:9px;}
+.q-item-table th{
+    background:#fff3e0!important;
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;
+    border:1px solid #ccc;padding:7px 4px;text-align:center;
+}
+.q-item-table td{border:1px solid #ddd;padding:6px 4px;text-align:center;height:26px;}
+.q-foot-row td{background:#fafafa!important;}
+.q-foot-total td{
+    background:#fff3e0!important;
+    -webkit-print-color-adjust:exact;
+    border-top:2px solid #e65100!important;font-weight:bold;
+}
+.txt-left{text-align:left!important;padding-left:8px!important;}
+.txt-right{text-align:right!important;padding-right:8px!important;}
+
+/* ── 인장 ── */
+.q-biz-inline{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;}
+.q-biz-name,.q-biz-rep{font-weight:bold;}
+.biz-seal-inline{width:46px;max-height:46px;object-fit:contain;opacity:.9;flex-shrink:0;}
+
+/* ── 비고/계좌 ── */
+.q-doc-footer{
+    margin-top:10px;border:1px solid #f1c7a2;
+    background:#fff8f3;border-radius:8px;padding:10px 12px;
+}
+.q-doc-footer-row{display:flex;gap:10px;font-size:12px;line-height:1.6;}
+.q-doc-footer-row+.q-doc-footer-row{margin-top:6px;}
+.q-doc-footer-row .label{min-width:64px;font-weight:bold;color:#a14b00;}
+.q-doc-footer-row.account .value{font-size:14px;font-weight:bold;color:#b71c1c;}
+
+/* ── 인쇄 시 처리 ── */
+html{-webkit-text-size-adjust:100%;print-color-adjust:exact;-webkit-print-color-adjust:exact;}
+img{max-width:100%;height:auto;}
+
+@media print{
+    #doc-toolbar{display:none!important;}
+    #doc-content{margin-top:0!important;padding:8px!important;}
+    body{padding:0;background:#fff;}
+    .q-wrap{max-width:none;}
+    .q-parties{width:100%;display:flex;gap:8px;}
+    .q-party-half{flex:1;width:50%;}
+    .q-party-table{width:100%;table-layout:fixed;}
+}
+
+/* ── 모바일 반응형 ── */
+@media screen and (max-width:768px){
+    #doc-content{margin-top:68px;padding:10px;}
+    #doc-toolbar{padding:7px 10px;gap:5px;}
+    #doc-toolbar button{padding:7px 10px;font-size:12px;}
+    #doc-toolbar .toolbar-title{font-size:12px;}
+    .q-head{flex-direction:column;gap:5px;}
+    .q-title-txt{font-size:20px;letter-spacing:5px;}
+    .q-parties{flex-direction:column;gap:6px;}
+    .q-party-half{width:100%;}
+    .q-party-table th:not(.party-header){width:56px;min-width:56px;font-size:11px;}
+    .q-party-table td{font-size:11px;}
+    .q-total-banner{flex-direction:column;align-items:flex-start;gap:4px;}
+    .q-total-num{font-size:17px;}
+    .q-item-table th,.q-item-table td{font-size:11px;padding:5px 3px;}
+    .biz-seal-inline{width:32px;max-height:32px;}
+}
+</style>
 </head>
 <body>
-<!-- ★ 핵심: 이 툴바 블록이 없으면 버튼이 안 보임 -->
 <div id="doc-toolbar">
-    <div class="tb-title">
-        ${mode==='invoice'?'💵 청구서':'🖨️ 견적서'} | ${escapeHtml(safeReceiver)}
+    <div class="toolbar-title">
+        ${mode==='invoice'?'💵 청구서':mode==='statement'?'📄 거래명세서':'🖨️ 견적서'} | ${escapeHtml(safeReceiver)}
     </div>
-    <button class="btn-print" onclick="doPrint()">🖨️ 인쇄</button>
-    <button class="btn-pdf" onclick="doPdfSave()">📄 PDF 저장</button>
-    <button onclick="requestKakaoShare()"
-        style="background:#fee500;color:#3c1e1e;border:none;
-               border-radius:8px;padding:10px 16px;
-               font-size:13px;font-weight:800;cursor:pointer;">
-        💬 카카오 공유
-    </button>
+    <button class="btn-print" onclick="(function(){if(window.AndroidPrint){window.AndroidPrint.print();}else{window.print();}})()">🖨️ 인쇄</button>
+    <button class="btn-kakao" id="qpo-kakao-btn">💬 카카오</button>
     <button class="btn-close" onclick="window.close()">✕ 닫기</button>
 </div>
+<div id="doc-content">
 ${pHTML}
+</div>
 <script>
-// 인쇄
-function doPrint(){
-    (function(){ if(window.AndroidPrint){window.AndroidPrint.print();}
-    else{window.print();} })();
-}
-// PDF 저장
-function doPdfSave(){
-    var origTitle = document.title;
-    document.title = '${fileName.replace('.pdf','')}';
-    doPrint();
-    setTimeout(function(){ document.title = origTitle; }, 2000);
-}
-// 카카오 공유 - 부모창 함수 호출
-function requestKakaoShare(){
-    if(window.opener && !window.opener.closed
-       && typeof window.opener.shareDocToKakao === 'function'){
-        window.opener.shareDocToKakao('${mode}', {
-            receiver: ${JSON.stringify(receiver)},
-            items: ${JSON.stringify(summarizeItemsForTax(kakaoItems))},
-            total: ${total},
-            date: ${JSON.stringify(issDate)},
-            bizName: ${JSON.stringify(String(biz.bizName||''))},
-            account: ${JSON.stringify(String(accountInfo||''))},
-            phone: ''
-        });
+var _kakaoData = ${kakaoDataJson};
+var _kakaoMode = '${mode}';
+
+document.getElementById('qpo-kakao-btn').addEventListener('click', function(){
+    if(window.opener && !window.opener.closed){
+        window.opener.postMessage(
+            { crmAction: 'shareKakao', type: _kakaoMode, data: _kakaoData },
+            '*'
+        );
+        setTimeout(function(){
+            var btn = document.getElementById('qpo-kakao-btn');
+            if(btn){ btn.textContent = '✅ 공유요청됨'; btn.style.background='#34a853'; btn.style.color='white'; }
+        }, 300);
     } else {
-        alert('카카오 공유를 사용하려면 팝업을 허용하고 메인 화면에서 다시 시도하세요.');
+        alert('메인 화면이 닫혀 있습니다.\\n견적 이력에서 카카오 공유 버튼을 이용해 주세요.');
     }
-}
+});
+
+(function(){
+    var isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || window.innerWidth <= 768;
+    if(!isMobile){
+        window.onafterprint = function(){ window.close(); };
+    }
+})();
 <\/script>
 </body></html>`;
 
-    const pop = window.open('','_blank') || window.open('','qw','width=900,height=1000,scrollbars=yes,resizable=yes');
+    const pw=900,ph=1000,l=Math.ceil((screen.width-pw)/2),t=Math.ceil((screen.height-ph)/2);
+    const pop = window.open('','_blank') || window.open('','qw',`width=${pw},height=${ph},left=${l},top=${t},scrollbars=yes,resizable=yes`);
     if(!pop){
-        alert('팝업 허용 후 다시 시도해 주세요.');
+        alert('팝업이 차단되었습니다. 팝업 허용 후 다시 시도해 주세요.');
         return;
     }
     pop.document.write(fullHTML);
@@ -12925,6 +13071,12 @@ function openInChrome() {
     }
 })();
 </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
