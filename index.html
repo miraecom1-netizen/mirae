@@ -2308,8 +2308,9 @@ function testKakaoAppKey() {
 
 // ── 카카오 공유 메인 함수 ──
 function shareDocToKakao(type, data) {
-    // ★ view.html 공개 뷰어 URL 생성
-    const base = 'https://miraecom1-netizen.github.io/mirae/view.html';
+    // ★ view.html 공개 뷰어 URL 생성 (항상 GitHub Pages)
+    const VIEWER_BASE = 'https://miraecom1-netizen.github.io/mirae/view.html';
+    
     const params = new URLSearchParams();
     params.set('type',     type);
     params.set('receiver', data.receiver || data.name || '');
@@ -2322,17 +2323,14 @@ function shareDocToKakao(type, data) {
     params.set('phone',    data.phone    || '');
     if (data.note) params.set('note', data.note);
 
-    // 품목 인코딩
     if (data.itemsArr && data.itemsArr.length) {
-        const itemStr = data.itemsArr
-            .map(it => `${it.name}::${it.amt || 0}`)
-            .join('||');
-        params.set('items', itemStr);
+        params.set('items', data.itemsArr.map(it => `${it.name}::${it.amt||0}`).join('||'));
     } else if (data.items) {
         params.set('items', `${data.items}::${data.total || 0}`);
     }
 
-    const viewUrl = `${base}?${params.toString()}`;
+    // ★★★ 핵심: viewUrl을 항상 GitHub Pages로 고정 ★★★
+    const viewUrl = `${VIEWER_BASE}?${params.toString()}`;
 
     const titles = {
         quote:     '📋 견적서',
@@ -2351,33 +2349,36 @@ function shareDocToKakao(type, data) {
         data.bizName ? `발신: ${data.bizName}`                          : ''
     ].filter(Boolean).join('\n');
 
-    // ① 카카오 SDK 공유 시도
+    // ★ 카카오 SDK - 무조건 GitHub Pages URL 사용
     if (initKakaoSDK()) {
         try {
             Kakao.Share.sendDefault({
-                objectType: 'text',
-                text: `${title}
-
-${desc}`,
-                link: {
-                    mobileWebUrl: viewUrl,
-                    webUrl:       viewUrl
+                objectType: 'feed',
+                content: {
+                    title: title,
+                    description: desc,
+                    imageUrl: 'https://miraecom1-netizen.github.io/mirae/thumb.png',
+                    link: {
+                        mobileWebUrl: viewUrl,  // ★ GitHub Pages URL
+                        webUrl:       viewUrl   // ★ GitHub Pages URL
+                    }
                 },
                 buttons: [{
-                    title: '📄 문서 확인',
+                    title: '📄 문서 확인하기',
                     link: {
-                        mobileWebUrl: viewUrl,
-                        webUrl:       viewUrl
+                        mobileWebUrl: viewUrl,  // ★ GitHub Pages URL
+                        webUrl:       viewUrl   // ★ GitHub Pages URL
                     }
                 }]
             });
             return;
         } catch(e) {
-            console.warn('[카카오 공유] SDK 실패, fallback:', e);
+            console.warn('[카카오 공유] SDK 실패:', e);
+            // fallback으로 계속
         }
     }
 
-    // ② fallback: 클립보드 복사 + 팝업
+    // ★ fallback: 클립보드 복사 + 팝업
     const fullText = [
         `[${titles[type] || '문서'}]`,
         `수신: ${data.receiver || data.name || ''}`,
@@ -2386,20 +2387,28 @@ ${desc}`,
         data.account ? `계좌: ${data.account}`                          : '',
         data.bizName ? `발신: ${data.bizName}`                          : '',
         '',
-        `📄 문서확인: ${viewUrl}`
-    ].filter(v => v != null && v !== '').join('\n');
+        `📄 문서확인 링크: ${viewUrl}`
+    ].filter(v => v !== null && v !== '').join('\n');
 
-    navigator.clipboard.writeText(fullText)
-        .then(() => showKakaoSharePopup(fullText, data.phone || '', viewUrl))
-        .catch(() => {
+    const copyAndShow = () => showKakaoSharePopup(fullText, data.phone || '', viewUrl);
+
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(fullText).then(copyAndShow).catch(() => {
             const ta = document.createElement('textarea');
             ta.value = fullText;
-            document.body.appendChild(ta);
-            ta.select();
+            document.body.appendChild(ta); ta.select();
             document.execCommand('copy');
             document.body.removeChild(ta);
-            showKakaoSharePopup(fullText, data.phone || '', viewUrl);
+            copyAndShow();
         });
+    } else {
+        const ta = document.createElement('textarea');
+        ta.value = fullText;
+        document.body.appendChild(ta); ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        copyAndShow();
+    }
 }
 
 // ── 카카오 공유 안내 팝업 ──
@@ -9191,29 +9200,58 @@ function requestKakaoShare() {
 
 function directShare() {
     var d = _shareData;
+
+    // ★ 항상 GitHub Pages URL 사용
+    var base = 'https://miraecom1-netizen.github.io/mirae/view.html';
+    var p = new URLSearchParams();
+    p.set('type',     d.type     || 'quote');
+    p.set('receiver', d.receiver || '');
+    p.set('total',    d.total    || 0);
+    p.set('date',     d.date     || '');
+    p.set('bizName',  d.bizName  || '');
+    p.set('bizTel',   d.bizTel   || '');
+    p.set('account',  d.account  || '');
+    p.set('phone',    d.phone    || '');
+    if (d.items) p.set('items', d.items + '::' + (d.total || 0));
+    var viewUrl = base + '?' + p.toString();
+
+    var typeLabel = d.type==='invoice' ? '청구서'
+                  : d.type==='statement' ? '거래명세서'
+                  : d.type==='receipt' ? '영수증'
+                  : d.type==='rental' ? '렌탈청구서'
+                  : '견적서';
+
     var lines = [
-        '[' + (d.type==='invoice'?'청구서':d.type==='statement'?'거래명세서':'견적서') + ']',
+        '[' + typeLabel + ']',
         '수신: ' + d.receiver,
-        d.items  ? '품목: ' + d.items  : '',
-        d.total  ? '금액: ' + Number(d.total).toLocaleString() + '원' : '',
-        d.date   ? '날짜: ' + d.date   : '',
-        d.bizName? '발신: ' + d.bizName: '',
-        d.account? '계좌: ' + d.account: ''
+        d.items   ? '품목: ' + d.items                              : '',
+        d.total   ? '금액: ' + Number(d.total).toLocaleString()+'원': '',
+        d.date    ? '날짜: ' + d.date                               : '',
+        d.bizName ? '발신: ' + d.bizName                            : '',
+        d.account ? '계좌: ' + d.account                            : '',
+        '',
+        '📄 문서확인: ' + viewUrl
     ].filter(Boolean).join('\n');
 
     var rawPhone = String(d.phone||'').replace(/[^0-9]/g,'');
-    var smsHref = rawPhone ? 'sms:' + rawPhone + '?body=' + encodeURIComponent(lines) : '';
+    var smsHref  = rawPhone
+        ? 'sms:' + rawPhone + '?body=' + encodeURIComponent(lines)
+        : '';
 
     function doCopy(cb){
         if(navigator.clipboard && navigator.clipboard.writeText){
-            navigator.clipboard.writeText(lines).then(cb).catch(function(){ fallbackCopy(); cb(); });
+            navigator.clipboard.writeText(lines).then(cb).catch(function(){
+                fallbackCopy(); cb();
+            });
         } else { fallbackCopy(); cb(); }
     }
     function fallbackCopy(){
         var ta = document.createElement('textarea');
-        ta.value = lines; ta.style.cssText='position:fixed;opacity:0;top:0;left:0;';
-        document.body.appendChild(ta); ta.select();
-        try{ document.execCommand('copy'); }catch(e){}
+        ta.value = lines;
+        ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0;';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); } catch(e) {}
         document.body.removeChild(ta);
     }
 
@@ -9228,7 +9266,8 @@ function directShare() {
         var overlay = document.createElement('div');
         overlay.id = '_kshare';
         overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:sans-serif;';
-        overlay.innerHTML = '<div style="background:white;border-radius:18px;width:min(380px,96vw);overflow:hidden;box-shadow:0 16px 50px rgba(0,0,0,.3);">'
+        overlay.innerHTML =
+            '<div style="background:white;border-radius:18px;width:min(380px,96vw);overflow:hidden;box-shadow:0 16px 50px rgba(0,0,0,.3);">'
             + '<div style="background:#fee500;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;">'
             + '<div style="display:flex;align-items:center;gap:10px;">'
             + '<span style="font-size:26px;">💬</span>'
@@ -9239,10 +9278,12 @@ function directShare() {
             + '<div style="padding:18px;">'
             + '<button onclick="try{window.location.href=\'kakaotalk://\';}catch(e){}setTimeout(function(){var m=document.getElementById(\'_kshare\');if(m)m.remove();},1500);" style="width:100%;padding:14px;background:#fee500;color:#3c1e1e;border:none;border-radius:10px;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:8px;">💬 카카오톡 열기 → 붙여넣기</button>'
             + smsBtn
-            + '<button onclick="if(navigator.clipboard)navigator.clipboard.writeText(' + JSON.stringify(lines) + ').then(function(){alert(\'다시 복사되었습니다!\');});" style="width:100%;padding:11px;border:1px solid #fee500;border-radius:10px;background:white;color:#7a6500;font-size:13px;font-weight:bold;cursor:pointer;">📋 다시 복사</button>'
+            + '<button onclick="navigator.clipboard.writeText(' + JSON.stringify(lines) + ').then(function(){alert(\'다시 복사되었습니다!\');});" style="width:100%;padding:11px;border:1px solid #fee500;border-radius:10px;background:white;color:#7a6500;font-size:13px;font-weight:bold;cursor:pointer;">📋 다시 복사</button>'
             + '</div></div>';
 
-        overlay.addEventListener('click', function(e){ if(e.target===overlay) overlay.remove(); });
+        overlay.addEventListener('click', function(e){
+            if(e.target===overlay) overlay.remove();
+        });
         document.body.appendChild(overlay);
 
         var btn = document.getElementById('kakao-share-btn');
@@ -13059,6 +13100,8 @@ function openInChrome() {
     }
 })();
 </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
