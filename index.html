@@ -2422,76 +2422,104 @@ function shareDocToKakao(type, data) {
 
     const params = new URLSearchParams();
     params.set('type',        type);
-    params.set('receiver',    data.receiver   || data.name || '');
+    params.set('receiver',    String(data.receiver || data.name || '').slice(0, 20));
     params.set('total',       String(data.total || 0));
-    params.set('date',        data.date        || '');
-    params.set('vatType',     data.vatType     || 'included');
+    params.set('date',        data.date || '');
+    params.set('vatType',     data.vatType || 'included');
 
     // 공급받는자 정보
-    params.set('phone',       data.phone       || '');
-    params.set('receiverAddr',data.receiverAddr || data.addr || '');
-    params.set('title',       data.title        || '');
+    params.set('phone',        String(data.phone || '').slice(0, 20));
+    params.set('receiverAddr', String(data.receiverAddr || data.addr || '').slice(0, 30));
+    params.set('title',        String(data.title || '').slice(0, 20));
 
     // 공급자 정보
-    params.set('bizName',    data.bizName    || biz.bizName    || '');
-    params.set('bizNum',     data.bizNum     || biz.bizNum     || '');
-    params.set('repName',    data.repName    || biz.repName    || '');
-    params.set('bizAddress', data.bizAddress || biz.address    || '');
-    params.set('bizType',    data.bizType    || biz.bizType    || '');
-    params.set('bizItem',    data.bizItem    || biz.bizItem    || '');
-    params.set('bizTel',     data.bizTel     || biz.tel || biz.mobile || '');
-    params.set('account',    data.account    || biz.account1   || '');
+    params.set('bizName',     String(data.bizName || biz.bizName || '').slice(0, 20));
+    params.set('bizNum',      String(data.bizNum || biz.bizNum || '').slice(0, 20));
+    params.set('repName',     String(data.repName || biz.repName || '').slice(0, 12));
+    params.set('bizAddress',  String(data.bizAddress || biz.address || '').slice(0, 30));
+    params.set('bizType',     String(data.bizType || biz.bizType || '').slice(0, 12));
+    params.set('bizItem',     String(data.bizItem || biz.bizItem || '').slice(0, 12));
+    params.set('bizTel',      String(data.bizTel || biz.tel || biz.mobile || '').slice(0, 20));
+    params.set('account',     String(data.account || biz.account1 || '').slice(0, 30));
 
-    if (data.note) params.set('note', data.note);
+    if (data.note) {
+        params.set('note', String(data.note).slice(0, 30));
+    }
 
-    // ★ 도장은 URL 형식일 때만 전달 (base64는 URL이 너무 길어 카카오 오류 발생)
+    // 도장은 URL 형식만 전달
     const sealData = biz.seal || '';
     if (sealData && sealData.startsWith('http')) {
         params.set('seal', sealData);
     }
-    // base64 도장은 전달하지 않음 (카카오 Internal Server Error 방지)
 
-    // ★ 품목 전체 정보
-    if (data.itemsArr && data.itemsArr.length) {
-        const itemStr = data.itemsArr
+    function buildItemStr(items, compact = false) {
+        return (items || [])
             .filter(it => String(it.name || '').trim())
-            .map(it => [
-                encodeURIComponent(String(it.name  || '')),
-                encodeURIComponent(String(it.spec  || '')),
-                (it.qty   != null && it.qty   !== '') ? it.qty   : '',
-                (it.price != null && it.price !== '') ? it.price : '',
-                it.amt != null ? it.amt : 0
-            ].join('::'))
-            .join('||');
-        if (itemStr) params.set('items', itemStr);
-    } else if (data.items) {
-        params.set('items',
-            encodeURIComponent(data.items) + '::' + (data.total || 0));
-    }
-
-    const viewUrl = `${VIEWER_BASE}?${params.toString()}`;
-
-    // ★ URL 길이 체크 (카카오는 약 2000자 제한)
-    if (viewUrl.length > 1800) {
-        console.warn('[카카오] URL 길이:', viewUrl.length, '- 품목 축약 처리');
-        // 품목이 너무 많으면 첫 5개만 전달
-        if (data.itemsArr && data.itemsArr.length > 5) {
-            const shortItems = data.itemsArr.slice(0, 5);
-            const shortItemStr = shortItems
-                .filter(it => String(it.name || '').trim())
-                .map(it => [
-                    encodeURIComponent(String(it.name || '')),
+            .map(it => compact
+                ? [
+                    encodeURIComponent(String(it.name || '').slice(0, 15)),
                     '',
                     '',
                     '',
                     it.amt != null ? it.amt : 0
-                ].join('::'))
-                .join('||');
-            params.set('items', shortItemStr);
-        }
+                ].join('::')
+                : [
+                    encodeURIComponent(String(it.name || '').slice(0, 20)),
+                    encodeURIComponent(String(it.spec || '').slice(0, 10)),
+                    (it.qty   != null && it.qty   !== '') ? it.qty   : '',
+                    (it.price != null && it.price !== '') ? it.price : '',
+                    it.amt != null ? it.amt : 0
+                ].join('::')
+            )
+            .join('||');
     }
 
-    const finalUrl = `${VIEWER_BASE}?${params.toString()}`;
+    function buildUrl() {
+        return `${VIEWER_BASE}?${params.toString()}`;
+    }
+
+    // 1차: 전체 품목
+    if (data.itemsArr && data.itemsArr.length) {
+        const fullItemStr = buildItemStr(data.itemsArr, false);
+        if (fullItemStr) params.set('items', fullItemStr);
+    } else if (data.items) {
+        params.set(
+            'items',
+            encodeURIComponent(String(data.items).slice(0, 30)) + '::' + (data.total || 0)
+        );
+    }
+
+    let finalUrl = buildUrl();
+
+    // 2차: URL 길면 품목 5개 축약
+    if (finalUrl.length > 1500 && data.itemsArr && data.itemsArr.length > 5) {
+        const shortItemStr = buildItemStr(data.itemsArr.slice(0, 5), true);
+        params.set('items', shortItemStr);
+        finalUrl = buildUrl();
+    }
+
+    // 3차: still too long -> note 제거
+    if (finalUrl.length > 1500 && params.get('note')) {
+        params.delete('note');
+        finalUrl = buildUrl();
+    }
+
+    // 4차: still too long -> 주소/제목 더 축약
+    if (finalUrl.length > 1500) {
+        params.set('receiverAddr', String(params.get('receiverAddr') || '').slice(0, 20));
+        params.set('bizAddress',   String(params.get('bizAddress') || '').slice(0, 20));
+        params.set('title',        String(params.get('title') || '').slice(0, 12));
+        finalUrl = buildUrl();
+    }
+
+    // 5차: still too long -> 첫 1개 품목만
+    if (finalUrl.length > 1500 && data.itemsArr && data.itemsArr.length) {
+        const oneItemStr = buildItemStr(data.itemsArr.slice(0, 1), true);
+        params.set('items', oneItemStr);
+        finalUrl = buildUrl();
+    }
+
+    console.log('[카카오 공유] URL 길이:', finalUrl.length);
 
     const titles = {
         quote:     '📋 견적서',
@@ -2501,14 +2529,12 @@ function shareDocToKakao(type, data) {
         tax:       '🧾 세금계산서',
         rental:    '🖨️ 렌탈 청구서'
     };
-    const docTitle = `${titles[type]||'📄 문서'} - ${data.receiver||data.name||'고객'} 귀중`;
+
+    const docTitle = `${titles[type] || '📄 문서'} - ${data.receiver || data.name || '고객'} 귀중`;
     const desc = [
-        data.total
-            ? `금액: ${Number(data.total).toLocaleString()}원` : '',
-        data.account || biz.account1
-            ? `계좌: ${data.account || biz.account1}` : '',
-        (data.bizName || biz.bizName)
-            ? `발신: ${data.bizName || biz.bizName}` : ''
+        data.total ? `금액: ${Number(data.total).toLocaleString()}원` : '',
+        (data.account || biz.account1) ? `계좌: ${data.account || biz.account1}` : '',
+        (data.bizName || biz.bizName) ? `발신: ${data.bizName || biz.bizName}` : ''
     ].filter(Boolean).join('\n');
 
     if (initKakaoSDK()) {
@@ -2521,22 +2547,23 @@ function shareDocToKakao(type, data) {
                     imageUrl: 'https://miraecom1-netizen.github.io/mirae/thumb.png',
                     link: {
                         mobileWebUrl: finalUrl,
-                        webUrl:       finalUrl
+                        webUrl: finalUrl
                     }
                 },
                 buttons: [{
                     title: '📄 문서 확인하기',
                     link: {
                         mobileWebUrl: finalUrl,
-                        webUrl:       finalUrl
+                        webUrl: finalUrl
                     }
                 }]
             });
             return;
-        } catch(e) {
+        } catch (e) {
             console.warn('[카카오 공유] SDK 실패:', e);
         }
     }
+
     shareQuoteKakao(
         finalUrl,
         data.receiver || data.name || '고객',
