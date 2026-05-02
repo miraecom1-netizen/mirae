@@ -2362,28 +2362,57 @@ function testKakaoAppKey() {
 
 // ── 카카오 공유 메인 함수 ──
 function shareDocToKakao(type, data) {
-    // ★ view.html 공개 뷰어 URL 생성 (항상 GitHub Pages)
     const VIEWER_BASE = 'https://miraecom1-netizen.github.io/mirae/view.html';
-    
+
+    // 공급자 정보 결정
+    const bizKey = data.bizKey || 'biz1';
+    const biz = (myBizInfo[bizKey] && myBizInfo[bizKey].bizName)
+                ? myBizInfo[bizKey]
+                : (myBizInfo.biz1 || {});
+
     const params = new URLSearchParams();
-    params.set('type',     type);
-    params.set('receiver', data.receiver || data.name || '');
-    params.set('total',    data.total    || 0);
-    params.set('date',     data.date     || '');
-    params.set('bizName',  data.bizName  || '');
-    params.set('bizTel',   data.bizTel   || '');
-    params.set('bizNum',   data.bizNum   || '');
-    params.set('account',  data.account  || '');
-    params.set('phone',    data.phone    || '');
+    params.set('type',       type);
+    params.set('receiver',   data.receiver || data.name || '');
+    params.set('total',      String(data.total || 0));
+    params.set('date',       data.date || '');
+    params.set('vatType',    data.vatType || 'included');
+
+    // 공급자 정보 전달
+    params.set('bizName',    data.bizName    || biz.bizName    || '');
+    params.set('bizNum',     data.bizNum     || biz.bizNum     || '');
+    params.set('repName',    data.repName    || biz.repName    || '');
+    params.set('bizAddress', data.bizAddress || biz.address    || '');
+    params.set('bizType',    data.bizType    || biz.bizType    || '');
+    params.set('bizItem',    data.bizItem    || biz.bizItem    || '');
+    params.set('bizTel',     data.bizTel     || biz.tel || biz.mobile || '');
+    params.set('account',    data.account    || biz.account1   || '');
+    params.set('phone',      data.phone      || '');
+
     if (data.note) params.set('note', data.note);
 
-    if (data.itemsArr && data.itemsArr.length) {
-        params.set('items', data.itemsArr.map(it => `${it.name}::${it.amt||0}`).join('||'));
-    } else if (data.items) {
-        params.set('items', `${data.items}::${data.total || 0}`);
+    // 도장 (URL 형식만)
+    if (biz.seal && biz.seal.startsWith('http')) {
+        params.set('seal', biz.seal);
     }
 
-    // ★★★ 핵심: viewUrl을 항상 GitHub Pages로 고정 ★★★
+    // ★ 품목 전체 정보 (name::spec::qty::price::amt 형식)
+    if (data.itemsArr && data.itemsArr.length) {
+        const itemStr = data.itemsArr
+            .filter(it => String(it.name || '').trim())
+            .map(it => [
+                encodeURIComponent(String(it.name  || '')),
+                encodeURIComponent(String(it.spec  || '')),
+                (it.qty   != null && it.qty   !== '') ? it.qty   : '',
+                (it.price != null && it.price !== '') ? it.price : '',
+                it.amt != null ? it.amt : 0
+            ].join('::'))
+            .join('||');
+        if (itemStr) params.set('items', itemStr);
+    } else if (data.items) {
+        // 구버전 호환
+        params.set('items', encodeURIComponent(data.items) + '::' + (data.total || 0));
+    }
+
     const viewUrl = `${VIEWER_BASE}?${params.toString()}`;
 
     const titles = {
@@ -2394,50 +2423,34 @@ function shareDocToKakao(type, data) {
         tax:       '🧾 세금계산서',
         rental:    '🖨️ 렌탈 청구서'
     };
-    const emoji = titles[type] || '📄 문서';
-    const title = `${emoji} - ${data.receiver || data.name || '고객'} 귀중`;
-    const desc  = [
-        data.items   ? `품목: ${data.items}`                            : '',
-        data.total   ? `금액: ${Number(data.total).toLocaleString()}원` : '',
-        data.account ? `계좌: ${data.account}`                          : '',
-        data.bizName ? `발신: ${data.bizName}`                          : ''
+    const docTitle = `${titles[type]||'📄 문서'} - ${data.receiver||data.name||'고객'} 귀중`;
+    const desc = [
+        data.total ? `금액: ${Number(data.total).toLocaleString()}원` : '',
+        data.account || biz.account1 ? `계좌: ${data.account || biz.account1}` : '',
+        (data.bizName || biz.bizName) ? `발신: ${data.bizName || biz.bizName}` : ''
     ].filter(Boolean).join('\n');
 
-    // ★ 카카오 SDK - 무조건 GitHub Pages URL 사용
     if (initKakaoSDK()) {
         try {
             Kakao.Share.sendDefault({
                 objectType: 'feed',
                 content: {
-                    title: title,
+                    title: docTitle,
                     description: desc,
                     imageUrl: 'https://miraecom1-netizen.github.io/mirae/thumb.png',
-                    link: {
-                        mobileWebUrl: viewUrl,  // ★ GitHub Pages URL
-                        webUrl:       viewUrl   // ★ GitHub Pages URL
-                    }
+                    link: { mobileWebUrl: viewUrl, webUrl: viewUrl }
                 },
                 buttons: [{
                     title: '📄 문서 확인하기',
-                    link: {
-                        mobileWebUrl: viewUrl,  // ★ GitHub Pages URL
-                        webUrl:       viewUrl   // ★ GitHub Pages URL
-                    }
+                    link: { mobileWebUrl: viewUrl, webUrl: viewUrl }
                 }]
             });
             return;
         } catch(e) {
             console.warn('[카카오 공유] SDK 실패:', e);
-            // fallback으로 계속
         }
     }
-
-    // ★ 기존 클립보드 복사 대신 카카오 공유 함수 사용
-    shareQuoteKakao(
-        viewUrl,
-        data.receiver || data.name || '고객',
-        data.total || 0
-    );
+    shareQuoteKakao(viewUrl, data.receiver || data.name || '고객', data.total || 0);
 }
 
 // ── 카카오 공유 안내 팝업 ──
@@ -8133,19 +8146,88 @@ async function saveService(){
     syncLocalData();isFormDirty=false;btnSave.disabled=false;btnSave.innerText='이력 저장';btnSave.style.background='var(--success)';clearServiceForm();renderServices();updateServiceCustomerOutstandingUI();refreshViews();
 }
 function renderServices(){
-    const c=customers.find(i=>i.id==currentId);const list=document.getElementById('serviceList');list.innerHTML='';
-    (c.services||[]).slice().reverse().forEach((s,idx)=>{
-        const ri=c.services.length-1-idx;const ps=s.isUnpaid?'unpaid':'';
-        const cs=s.isCompleted===false?'<span style="color:var(--danger);font-weight:bold;">처리중</span>':'<span style="color:var(--success);font-weight:bold;">처리완료</span>';
-        const bk=s.bizKey||'biz1';const bl=getBizLabel(bk);const bc=getBizColor(bk);const bb=getBizBg(bk);
-        const bBadge=`<span style="font-size:11px;font-weight:bold;color:${bc};background:${bb};padding:2px 7px;border-radius:10px;border:1px solid ${bc};">${bl}</span>`;
-        let pb='';
-        if(s.photoBefore)pb+=`<button class="btn-action" style="background:#0288d1;color:white;" data-photo-url="${encodeURIComponent(s.photoBefore)}" onclick="openPhotoWindowFromButton(this)">전📸</button>`;
-        if(s.photoAfter)pb+=`<button class="btn-action" style="background:#00796b;color:white;" data-photo-url="${encodeURIComponent(s.photoAfter)}" onclick="openPhotoWindowFromButton(this)">후📸</button>`;
-        const dc=s.content?s.content.replace(/[\n,]+/g,'<br>'):'';
-        const itemSummary=formatServiceItemsSummary(s.items);
-        const contentHTML=dc+(itemSummary?`<div style="margin-top:6px;font-size:11px;color:var(--quote);background:#fff3e0;border:1px solid #ffe0b2;border-radius:6px;padding:4px 6px;">📦 ${itemSummary}</div>`:'');
-        list.insertRow().innerHTML=`<td>${s.date}${s.reservationTime?`<div style="font-size:11px;color:var(--danger);font-weight:bold;margin-top:4px;">⏰ ${s.reservationTime}</div>`:''}</td><td style="text-align:left">${contentHTML}</td><td class="${ps}">${(Number(s.price)||0).toLocaleString()}원</td><td style="text-align:left;color:#666;">${s.memo||'-'}</td><td>${cs}</td><td>${bBadge}</td><td style="display:flex;gap:3px;justify-content:center;flex-wrap:wrap;">${pb}<button class="btn-action" style="background:#fee500;color:#3c1e1e;font-weight:bold;" onclick="shareDocToKakao('receipt',{receiver:'${escapeHtml(customers.find(x=>x.id==currentId)?.name||'')}',items:'${escapeHtml(formatServiceItemsSummary(s.items||[]))}',total:${Number(s.price)||0},date:'${s.date||''}',bizName:'${escapeHtml((myBizInfo[s.bizKey||'biz1']?.bizName)||'')}',bizTel:'${escapeHtml((myBizInfo[s.bizKey||'biz1']?.tel)||'')}',account:'${escapeHtml((myBizInfo[s.bizKey||'biz1']?.account1)||'')}',phone:'${escapeHtml(customers.find(x=>x.id==currentId)?.phone||'')}'})">💬 카카오</button><button class="btn-action" style="background:#4caf50;color:white;" onclick="openPrintWindow(${ri},'receipt')">🖨️영수증</button><button class="btn-action" style="background:#009688;color:white;" onclick="openPrintWindow(${ri},'statement')">🖨️명세서</button><button class="btn-action" onclick="handleEditService(${ri})">수정</button><button class="btn-action" style="color:red;background:white;border:1px solid red;" onclick="deleteService(${ri})">삭제</button></td>`;
+    const c = customers.find(i => i.id == currentId);
+    const list = document.getElementById('serviceList');
+    list.innerHTML = '';
+
+    (c.services || []).slice().reverse().forEach((s, idx) => {
+        const ri = c.services.length - 1 - idx;
+        const ps = s.isUnpaid ? 'unpaid' : '';
+        const cs = s.isCompleted === false
+            ? '<span style="color:var(--danger);font-weight:bold;">처리중</span>'
+            : '<span style="color:var(--success);font-weight:bold;">처리완료</span>';
+        const bk = s.bizKey || 'biz1';
+        const bl = getBizLabel(bk);
+        const bc = getBizColor(bk);
+        const bb = getBizBg(bk);
+        const bBadge = `<span style="font-size:11px;font-weight:bold;color:${bc};background:${bb};padding:2px 7px;border-radius:10px;border:1px solid ${bc};">${bl}</span>`;
+
+        let pb = '';
+        if (s.photoBefore) pb += `<button class="btn-action" style="background:#0288d1;color:white;" data-photo-url="${encodeURIComponent(s.photoBefore)}" onclick="openPhotoWindowFromButton(this)">전📸</button>`;
+        if (s.photoAfter)  pb += `<button class="btn-action" style="background:#00796b;color:white;" data-photo-url="${encodeURIComponent(s.photoAfter)}" onclick="openPhotoWindowFromButton(this)">후📸</button>`;
+
+        const dc = s.content ? s.content.replace(/[\n,]+/g, '<br>') : '';
+        const itemSummary = formatServiceItemsSummary(s.items);
+        const contentHTML = dc + (itemSummary
+            ? `<div style="margin-top:6px;font-size:11px;color:var(--quote);background:#fff3e0;border:1px solid #ffe0b2;border-radius:6px;padding:4px 6px;">📦 ${itemSummary}</div>`
+            : '');
+
+        // ★ 카카오 공유 데이터 - 전체 품목 포함
+        const _biz = (myBizInfo[bk] && myBizInfo[bk].bizName)
+                     ? myBizInfo[bk] : (myBizInfo.biz1 || {});
+        const _items = getServiceDocumentItems(s);
+
+        const _shareData = {
+            type:       'receipt',
+            receiver:   c.name   || '',
+            itemsArr:   _items,
+            total:      Number(s.price) || 0,
+            date:       s.date   || '',
+            vatType:    s.vat    || 'included',
+            bizKey:     bk,
+            bizName:    _biz.bizName  || '',
+            bizNum:     _biz.bizNum   || '',
+            repName:    _biz.repName  || '',
+            bizAddress: _biz.address  || '',
+            bizType:    _biz.bizType  || '',
+            bizItem:    _biz.bizItem  || '',
+            bizTel:     _biz.tel || _biz.mobile || '',
+            account:    _biz.account1 || '',
+            phone:      c.phone  || ''
+        };
+
+        // JSON 직렬화 후 HTML 속성에 안전하게 삽입
+        const _dataStr = JSON.stringify(_shareData)
+            .replace(/\\/g, '\\\\')
+            .replace(/'/g, "\\'")
+            .replace(/"/g, '&quot;');
+
+        list.insertRow().innerHTML = `
+            <td>${s.date}${s.reservationTime
+                ? `<div style="font-size:11px;color:var(--danger);font-weight:bold;margin-top:4px;">⏰ ${s.reservationTime}</div>`
+                : ''}</td>
+            <td style="text-align:left">${contentHTML}</td>
+            <td class="${ps}">${(Number(s.price) || 0).toLocaleString()}원</td>
+            <td style="text-align:left;color:#666;">${s.memo || '-'}</td>
+            <td>${cs}</td>
+            <td>${bBadge}</td>
+            <td style="display:flex;gap:3px;justify-content:center;flex-wrap:wrap;">
+                ${pb}
+                <button class="btn-action"
+                    style="background:#fee500;color:#3c1e1e;font-weight:bold;"
+                    onclick='shareDocToKakao("receipt", ${JSON.stringify(_shareData).replace(/'/g,"&#39;")})'>
+                    💬 카카오
+                </button>
+                <button class="btn-action" style="background:#4caf50;color:white;"
+                    onclick="openPrintWindow(${ri},'receipt')">🖨️영수증</button>
+                <button class="btn-action" style="background:#009688;color:white;"
+                    onclick="openPrintWindow(${ri},'statement')">🖨️명세서</button>
+                <button class="btn-action"
+                    onclick="handleEditService(${ri})">수정</button>
+                <button class="btn-action"
+                    style="color:red;background:white;border:1px solid red;"
+                    onclick="deleteService(${ri})">삭제</button>
+            </td>`;
     });
 }
 function editService(idx){const s=customers.find(c=>c.id==currentId).services[idx];document.getElementById('edit-service-idx').value=idx;document.getElementById('s-date').value=s.date;document.getElementById('s-time').value=s.reservationTime||'';document.getElementById('s-content').value=s.content;loadServiceItemsToForm(s.items||[]);document.getElementById('s-price').value=s.price;document.querySelector(`input[name="s-vat"][value="${s.vat||'부가세포함'}"]`).checked=true;document.getElementById('s-completed').checked=(s.isCompleted!==false);document.getElementById('s-memo').value=s.memo;document.getElementById('s-unpaid').checked=s.isUnpaid||false;document.getElementById('s-biz-select').value=s.bizKey||'biz1';updateBizPreview();document.getElementById('file-before').value='';document.getElementById('file-after').value='';resetServicePhotoDeleteState();updateServiceCustomerOutstandingUI();updateServicePhotoUI();document.getElementById('btn-s-save').innerText='수정 적용';isFormDirty=false;}
@@ -9044,15 +9126,28 @@ function printQuote(mode='quote'){
     const bannerText=(mode==='invoice')?'청구금액':'합계금액';
     const sealHTML=biz.seal?`<img src="${biz.seal}" class="biz-seal-inline">`:'';
 
+    // ── 카카오 공유 데이터 (전체 품목 포함) ──
+    const bizKeyForShare = selectedQuoteBiz || 'biz1';
+    const bizForShare = (myBizInfo[bizKeyForShare] && myBizInfo[bizKeyForShare].bizName)
+                        ? myBizInfo[bizKeyForShare] : (myBizInfo.biz1 || {});
+
     const kakaoShareData = {
-        type: mode,
-        receiver: receiver,
-        items: summarizeItemsForTax(kakaoItems),
-        total: total,
-        date: issDate,
-        bizName: String(biz.bizName||''),
-        bizTel: String(biz.tel||biz.mobile||''),
-        account: String(accountInfo||''),
+        type:       mode,
+        receiver:   receiver,
+        itemsArr:   kakaoItems,          // ★ 전체 품목 배열
+        total:      total,
+        date:       issDate,
+        vatType:    vatType,
+        bizKey:     bizKeyForShare,
+        bizName:    bizForShare.bizName  || '',
+        bizNum:     bizForShare.bizNum   || '',
+        repName:    bizForShare.repName  || '',
+        bizAddress: bizForShare.address  || '',
+        bizType:    bizForShare.bizType  || '',
+        bizItem:    bizForShare.bizItem  || '',
+        bizTel:     bizForShare.tel || bizForShare.mobile || '',
+        account:    accountInfo || bizForShare.account1 || '',
+        note:       noteText    || '',
         phone: (() => {
             const telVal = document.getElementById('q-receiver-tel')?.value.trim() || '';
             if (telVal) return telVal;
@@ -13071,6 +13166,8 @@ function openInChrome() {
     }
 })();
 </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
