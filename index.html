@@ -2418,29 +2418,55 @@ function shareDocToKakao(type, data) {
             String(data.items) + '::' + (data.total || 0));
     }
 
-    const viewUrl = `${VIEWER_BASE}?${params.toString()}`;
+    let finalUrl = `${VIEWER_BASE}?${params.toString()}`;
 
-    // ★ URL 길이 체크 (카카오는 약 2000자 제한)
-    if (viewUrl.length > 1800) {
-        console.warn('[카카오] URL 길이:', viewUrl.length, '- 품목 축약 처리');
-        // 품목이 너무 많으면 첫 5개만 전달
-        if (data.itemsArr && data.itemsArr.length > 5) {
-            const shortItems = data.itemsArr.slice(0, 5);
-            const shortItemStr = shortItems
-                .filter(it => String(it.name || '').trim())
-                .map(it => [
-                    String(it.name || ''),
-                    '',
-                    '',
-                    '',
-                    it.amt != null ? it.amt : 0
-                ].join('::'))
-                .join('||');
-            params.set('items', shortItemStr);
-        }
+    // ★ 카카오 모바일 10KB(10240바이트) 제한 대응
+    // 단계적으로 축약
+
+    // 1단계: URL이 1500자 초과 시 품목 3개로 제한
+    if (finalUrl.length > 1500 && data.itemsArr && data.itemsArr.length > 3) {
+        const shortItemStr = data.itemsArr
+            .slice(0, 3)
+            .filter(it => String(it.name || '').trim())
+            .map(it => [
+                String(it.name || '').slice(0, 10),
+                '',
+                '',
+                '',
+                it.amt != null ? it.amt : 0
+            ].join('::'))
+            .join('||');
+        params.set('items', shortItemStr);
+        finalUrl = `${VIEWER_BASE}?${params.toString()}`;
     }
 
-    const finalUrl = `${VIEWER_BASE}?${params.toString()}`;
+    // 2단계: 아직도 1200자 초과 시 품목 1개 + 합계만
+    if (finalUrl.length > 1200) {
+        const firstItem = data.itemsArr && data.itemsArr.length
+            ? String(data.itemsArr[0].name || '').slice(0, 10) + (data.itemsArr.length > 1 ? ` 외 ${data.itemsArr.length-1}건` : '')
+            : String(data.items || '').slice(0, 20);
+        params.set('items', firstItem + '::' + (data.total || 0));
+        // 비고, 주소 등 긴 파라미터 제거
+        params.delete('note');
+        params.delete('receiverAddr');
+        params.delete('bizAddress');
+        finalUrl = `${VIEWER_BASE}?${params.toString()}`;
+    }
+
+    // 3단계: 여전히 1000자 초과 시 최소 정보만
+    if (finalUrl.length > 1000) {
+        const minParams = new URLSearchParams();
+        minParams.set('type',     params.get('type') || 'quote');
+        minParams.set('receiver', (params.get('receiver') || '').slice(0, 15));
+        minParams.set('total',    params.get('total') || '0');
+        minParams.set('date',     params.get('date') || '');
+        minParams.set('bizName',  (params.get('bizName') || '').slice(0, 15));
+        minParams.set('bizTel',   params.get('bizTel') || '');
+        minParams.set('account',  (params.get('account') || '').slice(0, 30));
+        finalUrl = `${VIEWER_BASE}?${minParams.toString()}`;
+    }
+
+    console.log('[카카오] 최종 URL 길이:', finalUrl.length, 'bytes');
 
     const titles = {
         quote:     '📋 견적서',
@@ -13209,6 +13235,7 @@ function openInChrome() {
     }
 })();
 </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
