@@ -21,7 +21,8 @@ a{text-decoration:none}
 }
 #doc-toolbar .toolbar-title{
     font-size:13px;font-weight:bold;color:#e65100;
-    flex:1;min-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    flex:1;min-width:120px;white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis;
 }
 #doc-toolbar button,#doc-toolbar a.toolbar-btn{
     border:none;border-radius:7px;
@@ -32,287 +33,603 @@ a{text-decoration:none}
 .btn-print{background:#1a73e8;color:#fff}
 .btn-share{background:#fee500;color:#3c1e1e}
 .btn-close{background:#f1f3f4;color:#333;border:1px solid #ddd}
-#doc-content{margin-top:58px;padding:16px 20px 20px}
-.q-wrap{max-width:780px;margin:0 auto;background:#fff;padding:18px 20px;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.08)}
-.q-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:11px;border-bottom:3px solid #e65100;padding-bottom:7px}
-.q-title-txt{font-size:28px;font-weight:900;letter-spacing:10px;color:#e65100}
-.q-head-right{font-size:12px;white-space:nowrap}
-.q-parties{display:flex;gap:8px;margin-bottom:11px;width:100%}
-.q-party-half{flex:1;min-width:0;width:50%;display:flex;flex-direction:column}
-.q-party-table{width:100%;border-collapse:collapse;table-layout:fixed;height:100%}
-.q-party-table th,.q-party-table td{border:1px solid #bbb;padding:6px 8px;font-size:12px;vertical-align:middle;word-break:break-all;overflow:hidden}
-.q-party-table th{background:#f5f5f5!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;white-space:nowrap;font-weight:bold;text-align:center}
-.q-party-table th:not(.party-header){width:64px;min-width:64px}
-.q-party-table td{width:auto;min-height:28px;line-height:1.45}
-.q-party-table td:empty::after,.q-party-table td b:empty::after{content:'\00a0'}
-.party-header{text-align:center;font-size:13px;font-weight:900;padding:7px 5px;letter-spacing:4px;border:1px solid #bbb;width:auto!important;min-width:0!important}
-.receiver-header{background:#e3f2fd!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;color:#0d47a1}
-.supplier-header{background:#fff3e0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;color:#bf360c}
-.q-total-banner{background:#e65100!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;color:#fff;display:flex;justify-content:space-between;align-items:center;padding:9px 16px;border-radius:6px;margin-bottom:9px;font-size:14px;font-weight:bold}
-.q-total-num{font-size:20px;font-weight:900}
-.q-item-table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:9px}
-.q-item-table th{background:#fff3e0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;border:1px solid #ccc;padding:7px 4px;text-align:center}
-.q-item-table td{border:1px solid #ddd;padding:6px 4px;text-align:center;height:26px}
-.q-foot-row td{background:#fafafa!important}
-.q-foot-total td{background:#fff3e0!important;-webkit-print-color-adjust:exact;border-top:2px solid #e65100!important;font-weight:bold}
-.txt-left{text-align:left!important;padding-left:8px!important}
-.txt-right{text-align:right!important;padding-right:8px!important}
-.q-biz-inline{display:flex;align-items:center;gap:6px;flex-wrap:nowrap}
-.q-biz-name,.q-biz-rep{font-weight:bold}
-.biz-seal-inline{width:46px;max-height:46px;object-fit:contain;opacity:.9;flex-shrink:0}
-.q-doc-footer{margin-top:10px;border:1px solid #f1c7a2;background:#fff8f3;border-radius:8px;padding:10px 12px}
-.q-doc-footer-row{display:flex;gap:10px;font-size:12px;line-height:1.6}
-.q-doc-footer-row+.q-doc-footer-row{margin-top:6px}
-.q-doc-footer-row .label{min-width:64px;font-weight:bold;color:#a14b00}
-.q-doc-footer-row.account .value{font-size:14px;font-weight:bold;color:#b71c1c}
-.empty-wrap{max-width:780px;margin:0 auto;background:#fff;padding:30px 24px;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.08);text-align:center}
-.empty-title{font-size:20px;font-weight:800;color:#e65100;margin-bottom:10px}
-.empty-desc{font-size:14px;color:#555;line-height:1.7}
-.helper{margin-top:12px;font-size:12px;color:#888}
 
-@media print{
-    body{background:#fff}
-    #doc-toolbar{display:none!important}
-    #doc-content{margin-top:0!important;padding:8px!important}
-    .q-wrap,.empty-wrap{max-width:none;box-shadow:none;border-radius:0;padding:0}
-    .q-parties{width:100%;display:flex;gap:8px}
-    .q-party-half{flex:1;width:50%}
-    .q-party-table{width:100%;table-layout:fixed}
+#doc-content{margin-top:58px;padding:16px 20px 20px}
+
+/* ── 문서 래퍼 ── */
+.q-wrap{
+    max-width:780px;margin:0 auto;
+    background:#fff;padding:18px 20px;
+    border-radius:12px;
+    box-shadow:0 8px 32px rgba(0,0,0,.08)
 }
 
+/* ── 헤더 ── */
+.q-head{
+    display:flex;justify-content:space-between;
+    align-items:flex-end;margin-bottom:11px;
+    border-bottom:3px solid #e65100;padding-bottom:7px;
+}
+.q-title-txt{font-size:28px;font-weight:900;letter-spacing:10px;color:#e65100}
+.q-head-right{font-size:12px;white-space:nowrap}
+
+/* ── 공급자/수신자 좌우 배치 ── */
+.q-parties{
+    display:flex;gap:8px;margin-bottom:11px;width:100%;
+}
+.q-party-half{
+    flex:1;min-width:0;width:50%;
+    display:flex;flex-direction:column;
+}
+
+/* ── 당사자 테이블 ── */
+.q-party-table{
+    width:100%;border-collapse:collapse;
+    table-layout:fixed;height:100%;
+}
+.q-party-table th,
+.q-party-table td{
+    border:1px solid #bbb;
+    padding:6px 8px;font-size:12px;
+    vertical-align:middle;
+    word-break:break-all;overflow:hidden;
+}
+.q-party-table th{
+    background:#f5f5f5!important;
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;
+    width:70px;min-width:70px;
+    white-space:nowrap;font-weight:bold;
+    text-align:center;
+}
+.q-party-table td{
+    width:auto;min-height:28px;line-height:1.45;
+}
+.q-party-table td:empty::after{content:'\00a0'}
+
+/* 헤더 행 */
+.party-header{
+    text-align:center;font-size:13px;font-weight:900;
+    padding:7px 5px;letter-spacing:4px;
+    border:1px solid #bbb;
+    width:auto!important;min-width:0!important;
+}
+.receiver-header{
+    background:#e3f2fd!important;
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;color:#0d47a1;
+}
+.supplier-header{
+    background:#fff3e0!important;
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;color:#bf360c;
+}
+
+/* ── 도장 ── */
+.q-biz-inline{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;}
+.q-biz-name,.q-biz-rep{font-weight:bold;}
+.biz-seal-inline{
+    width:52px;max-height:52px;
+    object-fit:contain;opacity:.9;flex-shrink:0;
+}
+
+/* ── 합계 배너 ── */
+.q-total-banner{
+    background:#e65100!important;
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;
+    color:#fff;
+    display:flex;justify-content:space-between;align-items:center;
+    padding:9px 16px;border-radius:6px;margin-bottom:9px;
+    font-size:14px;font-weight:bold;
+}
+.q-total-num{font-size:20px;font-weight:900;}
+
+/* ── 품목 테이블 ── */
+.q-item-table{
+    width:100%;border-collapse:collapse;
+    font-size:13px;margin-bottom:9px;
+}
+.q-item-table th{
+    background:#fff3e0!important;
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;
+    border:1px solid #ccc;padding:7px 4px;text-align:center;
+}
+.q-item-table td{
+    border:1px solid #ddd;padding:6px 4px;
+    text-align:center;height:26px;
+    vertical-align:middle;
+}
+.q-foot-row td{background:#fafafa!important;}
+.q-foot-total td{
+    background:#fff3e0!important;
+    -webkit-print-color-adjust:exact;
+    border-top:2px solid #e65100!important;font-weight:bold;
+}
+.txt-left{text-align:left!important;padding-left:8px!important;}
+.txt-right{text-align:right!important;padding-right:8px!important;}
+
+/* ── 비고/계좌 ── */
+.q-doc-footer{
+    margin-top:10px;border:1px solid #f1c7a2;
+    background:#fff8f3;border-radius:8px;padding:10px 12px;
+}
+.q-doc-footer-row{display:flex;gap:10px;font-size:12px;line-height:1.6;}
+.q-doc-footer-row+.q-doc-footer-row{margin-top:6px;}
+.q-doc-footer-row .label{min-width:64px;font-weight:bold;color:#a14b00;}
+.q-doc-footer-row.account .value{font-size:14px;font-weight:bold;color:#b71c1c;}
+
+/* ── 빈 문서 안내 ── */
+.empty-wrap{
+    max-width:780px;margin:0 auto;
+    background:#fff;padding:30px 24px;
+    border-radius:12px;
+    box-shadow:0 8px 32px rgba(0,0,0,.08);
+    text-align:center;
+}
+.empty-title{font-size:20px;font-weight:800;color:#e65100;margin-bottom:10px;}
+.empty-desc{font-size:14px;color:#555;line-height:1.7;}
+.helper{margin-top:12px;font-size:12px;color:#888;}
+
+/* ── 인쇄 ── */
+@media print{
+    body{background:#fff;}
+    #doc-toolbar{display:none!important;}
+    #doc-content{margin-top:0!important;padding:8px!important;}
+    .q-wrap,.empty-wrap{
+        max-width:none;box-shadow:none;
+        border-radius:0;padding:0;
+    }
+    .q-parties{width:100%;display:flex;gap:8px;}
+    .q-party-half{flex:1;width:50%;}
+    .q-party-table{width:100%;table-layout:fixed;}
+}
+
+/* ── 모바일 반응형 ── */
 @media screen and (max-width:768px){
-    #doc-content{margin-top:68px;padding:10px}
-    #doc-toolbar{padding:7px 10px;gap:5px}
-    #doc-toolbar button,#doc-toolbar a.toolbar-btn{padding:7px 10px;font-size:12px}
-    #doc-toolbar .toolbar-title{font-size:12px}
-    .q-wrap{padding:12px 10px}
-    .q-head{flex-direction:column;gap:5px}
-    .q-title-txt{font-size:20px;letter-spacing:5px}
-    .q-parties{flex-direction:column;gap:6px}
-    .q-party-half{width:100%}
-    .q-party-table th:not(.party-header){width:56px;min-width:56px;font-size:11px}
-    .q-party-table td{font-size:11px}
-    .q-total-banner{flex-direction:column;align-items:flex-start;gap:4px}
-    .q-total-num{font-size:17px}
-    .q-item-table th,.q-item-table td{font-size:11px;padding:5px 3px}
-    .biz-seal-inline{width:32px;max-height:32px}
+    #doc-content{margin-top:68px;padding:10px;}
+    #doc-toolbar{padding:7px 10px;gap:5px;}
+    #doc-toolbar button,#doc-toolbar a.toolbar-btn{padding:7px 10px;font-size:12px;}
+    #doc-toolbar .toolbar-title{font-size:12px;}
+    .q-wrap{padding:12px 10px;}
+    .q-head{flex-direction:column;gap:5px;}
+    .q-title-txt{font-size:20px;letter-spacing:5px;}
+    .q-parties{flex-direction:row;gap:5px;}
+    .q-party-half{width:50%;}
+    .q-party-table th{width:56px;min-width:56px;font-size:10px;padding:4px 3px;}
+    .q-party-table td{font-size:10px;padding:4px 3px;}
+    .party-header{font-size:11px;letter-spacing:1px;padding:5px 3px;}
+    .q-total-banner{flex-direction:column;align-items:flex-start;gap:4px;}
+    .q-total-num{font-size:17px;}
+    .q-item-table th,.q-item-table td{font-size:11px;padding:5px 3px;}
+    .biz-seal-inline{width:32px;max-height:32px;}
+}
+
+/* ── 아주 작은 화면 ── */
+@media screen and (max-width:480px){
+    .q-party-table th{width:48px;min-width:48px;font-size:9px;padding:3px 2px;}
+    .q-party-table td{font-size:9px;padding:3px 2px;}
+    .party-header{font-size:10px;letter-spacing:0;}
+    .q-title-txt{font-size:17px;letter-spacing:3px;}
+    .q-item-table th,.q-item-table td{font-size:10px;padding:4px 2px;}
 }
 </style>
 </head>
 <body>
+
 <div id="doc-toolbar">
     <div class="toolbar-title" id="toolbar-title">📄 문서 보기</div>
     <button class="btn-print" onclick="window.print()">🖨️ 인쇄</button>
     <button class="btn-share" onclick="copyCurrentUrl()">🔗 링크복사</button>
     <button class="btn-close" onclick="tryCloseWindow()">✕ 닫기</button>
 </div>
+
 <div id="doc-content"></div>
 
 <script>
-function qs(name){return new URLSearchParams(location.search).get(name) || '';}
-function num(v){const n=Number(String(v||'').replace(/,/g,'')); return Number.isFinite(n)?n:0;}
-function escapeHtml(s){return String(s ?? '')
-  .replace(/&/g,'&amp;')
-  .replace(/</g,'&lt;')
-  .replace(/>/g,'&gt;')
-  .replace(/"/g,'&quot;')
-  .replace(/'/g,'&#39;');}
-function won(v){return num(v).toLocaleString();}
-function nz(v,fallback='　'){const t=String(v||'').trim(); return t || fallback;}
-function decodePlus(v){return decodeURIComponent(String(v||'').replace(/\+/g,'%20'));}
-
-function getDocMeta(type){
-  return {
-    quote:     {title:'견 &nbsp; 적 &nbsp; 서', banner:'합계금액', icon:'🖨️ 견적서'},
-    invoice:   {title:'청 &nbsp; 구 &nbsp; 서', banner:'청구금액', icon:'💵 청구서'},
-    statement: {title:'거 &nbsp; 래 &nbsp; 명 &nbsp; 세 &nbsp; 서', banner:'합계금액', icon:'📄 거래명세서'},
-    receipt:   {title:'영 &nbsp; 수 &nbsp; 증', banner:'결제금액', icon:'🧾 영수증'},
-    tax:       {title:'세 &nbsp; 금 &nbsp; 계 &nbsp; 산 &nbsp; 서', banner:'합계금액', icon:'🧾 세금계산서'}
-  }[type] || {title:'문 &nbsp; 서', banner:'합계금액', icon:'📄 문서'};
+/* ════════════════════════════════════════
+   유틸
+════════════════════════════════════════ */
+function qs(name){
+    return new URLSearchParams(location.search).get(name);
 }
 
+function num(v){
+    const n = Number(String(v||'').replace(/,/g,''));
+    return Number.isFinite(n) ? n : 0;
+}
+
+function escapeHtml(s){
+    return String(s ?? '')
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;')
+        .replace(/'/g,'&#39;');
+}
+
+function won(v){ return num(v).toLocaleString(); }
+
+function nz(v, fallback='　'){
+    const t = String(v||'').trim();
+    return t || fallback;
+}
+
+/* ════════════════════════════════════════
+   문서 종류별 메타
+════════════════════════════════════════ */
+function getDocMeta(type){
+    const map = {
+        quote:     {title:'견 &nbsp; 적 &nbsp; 서',                    banner:'합계금액', icon:'🖨️ 견적서'},
+        invoice:   {title:'청 &nbsp; 구 &nbsp; 서',                    banner:'청구금액', icon:'💵 청구서'},
+        statement: {title:'거 &nbsp; 래 &nbsp; 명 &nbsp; 세 &nbsp; 서', banner:'합계금액', icon:'📄 거래명세서'},
+        receipt:   {title:'영 &nbsp; 수 &nbsp; 증',                    banner:'결제금액', icon:'🧾 영수증'},
+        tax:       {title:'세 &nbsp; 금 &nbsp; 계 &nbsp; 산 &nbsp; 서', banner:'합계금액', icon:'🧾 세금계산서'},
+        rental:    {title:'렌 &nbsp; 탈 &nbsp; 청 &nbsp; 구 &nbsp; 서', banner:'청구금액', icon:'🖨️ 렌탈청구서'}
+    };
+    return map[type] || {title:'문 &nbsp; 서', banner:'합계금액', icon:'📄 문서'};
+}
+
+/* ════════════════════════════════════════
+   ★★★ 핵심: 품목 파싱 (이중 디코딩 방지)
+   URLSearchParams.get()이 이미 1회 디코딩함
+   → 추가 decodeURIComponent 절대 금지
+   형식: name::spec::qty::price::amt||name::...
+════════════════════════════════════════ */
 function parseItems(raw){
-  const text = String(raw || '').trim();
-  if(!text) return [];
-  return text.split('||').map(part => {
-    const seg = part.split('::');
-    const name = (seg[0] || '').trim();
-    const val  = num(seg[1] || 0);
-    return name ? {name, spec:'', qty:'', price:'', amt:val} : null;
-  }).filter(Boolean);
+    if(!raw || !raw.trim()) return [];
+
+    return raw.split('||').map(part => {
+        // URLSearchParams.get()이 이미 디코딩된 상태
+        // part를 그대로 :: 로 분리
+        const seg = part.split('::');
+
+        const name  = String(seg[0] || '').trim();
+        const spec  = String(seg[1] || '').trim();
+
+        // 구버전(2개): name::amt
+        if(seg.length <= 2){
+            const amt = num(seg[1] || 0);
+            return name ? {name, spec:'', qty:'', price:'', amt} : null;
+        }
+
+        // 신버전(5개): name::spec::qty::price::amt
+        const qty   = (seg[2] !== '' && seg[2] != null) ? num(seg[2]) : '';
+        const price = (seg[3] !== '' && seg[3] != null) ? num(seg[3]) : '';
+        const amt   = num(seg[4] || 0);
+
+        return name ? {name, spec, qty, price, amt} : null;
+    }).filter(Boolean);
+}
+
+/* ════════════════════════════════════════
+   부가세 계산
+════════════════════════════════════════ */
+function inferSupplyTax(total, vatType, supplyParam, taxParam){
+    let supply = num(supplyParam);
+    let tax    = num(taxParam);
+    const t    = num(total);
+
+    if(supply || tax) return {supply, tax, total: t};
+
+    if(vatType === 'included'){
+        tax    = Math.round(t / 11);
+        supply = t - tax;
+    } else if(vatType === 'excluded'){
+        supply = Math.round(t / 1.1);
+        tax    = t - supply;
+    } else {
+        supply = t;
+        tax    = 0;
+    }
+    return {supply, tax, total: t};
 }
 
 function getVatLabel(vatType){
-  if(vatType === 'included') return '부가세 포함';
-  if(vatType === 'excluded') return '부가세 별도';
-  if(vatType === 'free') return '부가세 없음';
-  return '';
+    if(vatType === 'included') return '부가세 포함';
+    if(vatType === 'excluded') return '부가세 별도';
+    if(vatType === 'free')     return '부가세 없음';
+    return '';
 }
 
+/* ════════════════════════════════════════
+   품목 행 HTML 생성
+════════════════════════════════════════ */
 function buildRowsHTML(items, total){
-  let rowsHTML = '';
-  const list = Array.isArray(items) ? items.slice() : [];
-  if(!list.length && total){
-    list.push({name:'문서 금액', spec:'', qty:'', price:'', amt:total});
-  }
-  let rowNo = 0;
-  for(const it of list){
-    rowNo++;
-    rowsHTML += `<tr>
-      <td>${rowNo}</td>
-      <td class="txt-left">${escapeHtml(it.name || '')}</td>
-      <td>${escapeHtml(it.spec || '')}</td>
-      <td class="txt-right">${it.qty!=='' && it.qty!=null ? escapeHtml(String(it.qty)) : ''}</td>
-      <td class="txt-right">${it.price!=='' && it.price!=null ? won(it.price) : ''}</td>
-      <td class="txt-right"><b>${won(it.amt || 0)}</b></td>
-    </tr>`;
-  }
-  for(let i=rowNo;i<10;i++) rowsHTML += '<tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>';
-  return rowsHTML;
+    let rowsHTML = '';
+    const list = Array.isArray(items) ? items.slice() : [];
+
+    if(!list.length && total){
+        list.push({name:'문서 금액', spec:'', qty:'', price:'', amt: total});
+    }
+
+    let rowNo = 0;
+    for(const it of list){
+        rowNo++;
+        const qtyStr   = (it.qty   !== '' && it.qty   != null) ? won(it.qty)   : '';
+        const priceStr = (it.price !== '' && it.price != null) ? won(it.price) : '';
+        const amtStr   = won(it.amt || 0);
+
+        rowsHTML += `<tr>
+            <td>${rowNo}</td>
+            <td class="txt-left">${escapeHtml(it.name || '')}</td>
+            <td>${escapeHtml(it.spec || '')}</td>
+            <td class="txt-right">${qtyStr}</td>
+            <td class="txt-right">${priceStr}</td>
+            <td class="txt-right"><b>${amtStr}</b></td>
+        </tr>`;
+    }
+
+    // 최소 5행 유지
+    const minRows = Math.max(5, rowNo);
+    for(let i = rowNo; i < minRows; i++){
+        rowsHTML += `<tr>
+            <td style="height:26px;"></td>
+            <td></td><td></td><td></td><td></td><td></td>
+        </tr>`;
+    }
+
+    return rowsHTML;
 }
 
-function inferSupplyTax(total, vatType, supplyParam, taxParam){
-  let supply = num(supplyParam);
-  let tax = num(taxParam);
-  const t = num(total);
-  if(supply || tax) return {supply, tax, total:t};
-  if(vatType === 'included'){
-    tax = Math.round(t / 11);
-    supply = t - tax;
-  }else if(vatType === 'excluded'){
-    supply = Math.round(t / 1.1);
-    tax = t - supply;
-  }else{
-    supply = t;
-    tax = 0;
-  }
-  return {supply, tax, total:t};
-}
-
+/* ════════════════════════════════════════
+   링크 복사 / 닫기
+════════════════════════════════════════ */
 function copyCurrentUrl(){
-  navigator.clipboard.writeText(location.href)
-    .then(()=>alert('링크가 복사되었습니다.'))
-    .catch(()=>prompt('아래 링크를 복사해 주세요.', location.href));
+    navigator.clipboard.writeText(location.href)
+        .then(()=> alert('링크가 복사되었습니다.'))
+        .catch(()=> prompt('아래 링크를 복사해 주세요.', location.href));
 }
 
 function tryCloseWindow(){
-  window.close();
-  setTimeout(()=>{
-    if(!document.hidden){ history.length > 1 ? history.back() : void 0; }
-  }, 150);
+    window.close();
+    setTimeout(()=>{
+        if(!document.hidden){
+            if(history.length > 1) history.back();
+        }
+    }, 150);
 }
 
+/* ════════════════════════════════════════
+   ★★★ 메인 렌더 함수
+   URLSearchParams.get()은 이미 디코딩된 값 반환
+   → 추가 decodeURIComponent 불필요
+════════════════════════════════════════ */
 function render(){
-  const params = new URLSearchParams(location.search);
-  const type = qs('type') || 'quote';
-  const meta = getDocMeta(type);
-  const receiver = decodePlus(qs('receiver'));
-  const title = decodePlus(qs('title')) || (type==='invoice'?'청구서':type==='statement'?'거래명세서':type==='receipt'?'영수증':'견적서');
-  const issDate = decodePlus(qs('date'));
-  const total = num(qs('total'));
-  const vatType = qs('vatType') || '';
-  const note = decodePlus(qs('note'));
-  const account = decodePlus(qs('account'));
-  const items = parseItems(qs('items'));
-  const receiverTel = decodePlus(qs('receiverTel') || qs('phone'));
-  const receiverAddr = decodePlus(qs('receiverAddr') || qs('addr'));
-  const bizName = decodePlus(qs('bizName'));
-  const bizNum = decodePlus(qs('bizNum'));
-  const repName = decodePlus(qs('repName'));
-  const bizAddress = decodePlus(qs('bizAddress'));
-  const bizType = decodePlus(qs('bizType'));
-  const bizItem = decodePlus(qs('bizItem'));
-  const bizTel = decodePlus(qs('bizTel'));
-  const seal = qs('seal');
-  const extraBlankReceiverRow = true;
+    const type       = qs('type') || 'quote';
+    const meta       = getDocMeta(type);
 
-  document.title = `${title} - ${receiver || '문서'}`;
-  document.getElementById('toolbar-title').textContent = `${meta.icon} | ${receiver || '문서 보기'}`;
+    // ★ URLSearchParams.get()이 자동으로 디코딩 → 추가 처리 불필요
+    const receiver   = qs('receiver') || '';
+    const title      = qs('title') ||
+                       (type==='invoice'  ? '청구서'
+                       :type==='statement'? '거래명세서'
+                       :type==='receipt'  ? '영수증'
+                       :type==='rental'   ? '렌탈 청구서'
+                       :'견적서');
+    const issDate    = qs('date') || '';
+    const total      = num(qs('total'));
+    const vatType    = qs('vatType') || '';
+    const note       = qs('note') || '';
+    const account    = qs('account') || '';
 
-  if(!receiver && !total && !items.length && !bizName){
+    // ★ items: URLSearchParams.get()이 이미 디코딩 → parseItems에서 추가 디코딩 금지
+    const rawItems   = qs('items') || '';
+    const items      = parseItems(rawItems);
+
+    /* 수신자 정보 */
+    const receiverTel    = qs('receiverTel') || qs('phone') || '';
+    const receiverAddr   = qs('receiverAddr') || qs('addr') || '';
+    const receiverBizNum = qs('receiverBizNum') || '';
+
+    /* 공급자 정보 */
+    const bizName    = qs('bizName')    || '';
+    const bizNum     = qs('bizNum')     || '';
+    const repName    = qs('repName')    || '';
+    const bizAddress = qs('bizAddress') || qs('bizAddr') || '';
+    const bizType    = qs('bizType')    || '';
+    const bizItem    = qs('bizItem')    || '';
+    const bizTel     = qs('bizTel')     || '';
+    const seal       = qs('seal')       || '';
+
+    /* 툴바 제목 업데이트 */
+    document.title = `${title} - ${receiver || '문서'}`;
+    document.getElementById('toolbar-title').textContent =
+        `${meta.icon} | ${receiver || '문서 보기'}`;
+
+    /* 데이터 없음 처리 */
+    if(!receiver && !total && !items.length && !bizName){
+        document.getElementById('doc-content').innerHTML = `
+            <div class="empty-wrap">
+                <div class="empty-title">📄 문서 정보를 찾을 수 없습니다</div>
+                <div class="empty-desc">
+                    카카오 공유 링크의 파라미터가 없거나 누락되었습니다.<br>
+                    메인 화면에서 다시 공유해 주세요.
+                </div>
+                <div class="helper">
+                    필수 파라미터: type, receiver, total, date, bizName, items
+                </div>
+            </div>`;
+        return;
+    }
+
+    /* 금액 계산 */
+    const calc     = inferSupplyTax(total, vatType, qs('supply'), qs('tax'));
+    const vatLabel = getVatLabel(vatType);
+    const rowsHTML = buildRowsHTML(items, total);
+
+    /* 도장 HTML (URL 형식만 지원) */
+    const sealHTML = (seal && seal.startsWith('http'))
+        ? `<img src="${escapeHtml(seal)}" class="biz-seal-inline" alt="직인">`
+        : '';
+
+    /* 비고/계좌 푸터 */
+    const footerHTML = (note || account) ? `
+        <div class="q-doc-footer">
+            ${note    ? `<div class="q-doc-footer-row">
+                            <span class="label">비고</span>
+                            <span class="value">${escapeHtml(note)}</span>
+                         </div>` : ''}
+            ${account ? `<div class="q-doc-footer-row account">
+                            <span class="label">입금계좌</span>
+                            <span class="value">${escapeHtml(account)}</span>
+                         </div>` : ''}
+        </div>` : '';
+
+    /* 최종 HTML 렌더 */
     document.getElementById('doc-content').innerHTML = `
-      <div class="empty-wrap">
-        <div class="empty-title">문서 정보를 찾을 수 없습니다</div>
-        <div class="empty-desc">카카오 공유 링크의 파라미터가 없거나 누락되었습니다.<br>메인 화면에서 다시 공유해 주세요.</div>
-        <div class="helper">필수값 예시: type, receiver, total, date, bizName, items</div>
-      </div>`;
-    return;
-  }
-
-  const calc = inferSupplyTax(total, vatType, qs('supply'), qs('tax'));
-  const vatLabel = getVatLabel(vatType);
-  const rowsHTML = buildRowsHTML(items, total);
-  const sealHTML = seal ? `<img src="${seal}" class="biz-seal-inline" alt="직인">` : '';
-  const footerHTML = (note || account) ? `
-    <div class="q-doc-footer">
-      ${note ? `<div class="q-doc-footer-row"><span class="label">비고</span><span class="value">${escapeHtml(note)}</span></div>` : ''}
-      ${account ? `<div class="q-doc-footer-row account"><span class="label">입금계좌</span><span class="value">${escapeHtml(account)}</span></div>` : ''}
-    </div>` : '';
-
-  document.getElementById('doc-content').innerHTML = `
     <div class="q-wrap">
-      <div class="q-head">
-        <div class="q-title-txt">${meta.title}</div>
-        <div class="q-head-right">작성일자 : <b>${escapeHtml(nz(issDate,''))}</b></div>
-      </div>
-      <div class="q-parties">
-        <div class="q-party-half">
-          <table class="q-party-table">
-            <colgroup>
-              <col style="width:64px;">
-              <col style="width:auto;">
-            </colgroup>
-            <tr><th colspan="2" class="party-header receiver-header">공 급 받 는 자</th></tr>
-            <tr><th>상호/성명</th><td><b>${escapeHtml(nz(receiver))}</b> 귀하</td></tr>
-            <tr><th>연락처</th><td>${escapeHtml(nz(receiverTel))}</td></tr>
-            <tr><th>주소</th><td>${escapeHtml(nz(receiverAddr))}</td></tr>
-            <tr><th>건&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;명</th><td>${escapeHtml(nz(title))}</td></tr>
-            ${extraBlankReceiverRow ? `<tr><th>&nbsp;</th><td>　</td></tr>` : ''}
-          </table>
+
+        <!-- 제목 -->
+        <div class="q-head">
+            <div class="q-title-txt">${meta.title}</div>
+            <div class="q-head-right">
+                작성일자 : <b>${escapeHtml(nz(issDate,''))}</b>
+            </div>
         </div>
-        <div class="q-party-half">
-          <table class="q-party-table q-supplier-table">
-            <colgroup>
-              <col style="width:64px;">
-              <col style="width:auto;">
-            </colgroup>
-            <tr><th colspan="2" class="party-header supplier-header">공 급 자</th></tr>
-            <tr><th>등록번호</th><td><b>${escapeHtml(nz(bizNum))}</b></td></tr>
-            <tr><th>상호/대표자</th><td><div class="q-biz-inline"><span class="q-biz-name">${escapeHtml(nz(bizName))}</span><span class="q-biz-rep">${escapeHtml(nz(repName))}</span>${sealHTML}</div></td></tr>
-            <tr><th>주&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;소</th><td>${escapeHtml(nz(bizAddress))}</td></tr>
-            <tr><th>업태/종목</th><td>${escapeHtml(nz(bizType))} / ${escapeHtml(nz(bizItem))}</td></tr>
-            <tr><th>전&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;화</th><td>${escapeHtml(nz(bizTel))}</td></tr>
-          </table>
+
+        <!-- 공급받는자 + 공급자 좌우 배치 -->
+        <div class="q-parties">
+
+            <!-- 공급받는자 (왼쪽) -->
+            <div class="q-party-half">
+                <table class="q-party-table">
+                    <colgroup>
+                        <col style="width:70px;">
+                        <col>
+                    </colgroup>
+                    <tr>
+                        <th colspan="2" class="party-header receiver-header">
+                            공 급 받 는 자
+                        </th>
+                    </tr>
+                    <tr>
+                        <th>상호/성명</th>
+                        <td><b>${escapeHtml(nz(receiver))}</b> 귀하</td>
+                    </tr>
+                    <tr>
+                        <th>연&nbsp;&nbsp;락&nbsp;&nbsp;처</th>
+                        <td>${escapeHtml(nz(receiverTel))}</td>
+                    </tr>
+                    <tr>
+                        <th>주&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;소</th>
+                        <td>${escapeHtml(nz(receiverAddr))}</td>
+                    </tr>
+                    <tr>
+                        <th>건&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;명</th>
+                        <td>${escapeHtml(nz(title))}</td>
+                    </tr>
+                    <!-- 공급자(6행)와 높이 맞추기용 빈 행 -->
+                    <tr>
+                        <th>&nbsp;</th>
+                        <td>&nbsp;</td>
+                    </tr>
+                </table>
+            </div>
+
+            <!-- 공급자 (오른쪽) -->
+            <div class="q-party-half">
+                <table class="q-party-table q-supplier-table">
+                    <colgroup>
+                        <col style="width:70px;">
+                        <col>
+                    </colgroup>
+                    <tr>
+                        <th colspan="2" class="party-header supplier-header">
+                            공 급 자
+                        </th>
+                    </tr>
+                    <tr>
+                        <th>등록번호</th>
+                        <td><b>${escapeHtml(nz(bizNum))}</b></td>
+                    </tr>
+                    <tr>
+                        <th>상호/대표자</th>
+                        <td>
+                            <div class="q-biz-inline">
+                                <span class="q-biz-name">${escapeHtml(nz(bizName))}</span>
+                                <span class="q-biz-rep">${escapeHtml(nz(repName,''))}</span>
+                                ${sealHTML}
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>주&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;소</th>
+                        <td>${escapeHtml(nz(bizAddress))}</td>
+                    </tr>
+                    <tr>
+                        <th>업태/종목</th>
+                        <td>
+                            ${escapeHtml(nz(bizType,''))}
+                            ${(bizType && bizItem) ? ' / ' : ''}
+                            ${escapeHtml(nz(bizItem,''))}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>전&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;화</th>
+                        <td>${escapeHtml(nz(bizTel))}</td>
+                    </tr>
+                </table>
+            </div>
+
+        </div><!-- /.q-parties -->
+
+        <!-- 합계 배너 -->
+        <div class="q-total-banner">
+            <span>
+                ${meta.banner}
+                ${vatLabel ? `(${escapeHtml(vatLabel)})` : ''}
+            </span>
+            <span class="q-total-num">₩ ${won(calc.total)}</span>
         </div>
-      </div>
-      <div class="q-total-banner">
-        <span>${meta.banner}${vatLabel ? ` (${escapeHtml(vatLabel)})` : ''}</span>
-        <span class="q-total-num">₩ ${won(calc.total)}</span>
-      </div>
-      <table class="q-item-table">
-        <thead>
-          <tr>
-            <th style="width:6%">No.</th>
-            <th style="width:34%">품명</th>
-            <th style="width:12%">규격</th>
-            <th style="width:10%">수량</th>
-            <th style="width:18%">단가</th>
-            <th style="width:20%">금액</th>
-          </tr>
-        </thead>
-        <tbody>${rowsHTML}</tbody>
-        <tfoot>
-          <tr class="q-foot-row"><td colspan="3">소계</td><td colspan="3" class="txt-right"><b>${won(calc.supply)}</b></td></tr>
-          ${vatType && vatType !== 'free' ? `<tr class="q-foot-row"><td colspan="3">부가세(10%)</td><td colspan="3" class="txt-right"><b>${won(calc.tax)}</b></td></tr>` : ''}
-          <tr class="q-foot-total"><td colspan="3">합계</td><td colspan="3" class="txt-right" style="font-size:15px;"><b>₩ ${won(calc.total)}</b></td></tr>
-        </tfoot>
-      </table>
-      ${footerHTML}
+
+        <!-- 품목 테이블 -->
+        <table class="q-item-table">
+            <thead>
+                <tr>
+                    <th style="width:6%">No.</th>
+                    <th style="width:36%">품&nbsp;&nbsp;&nbsp;명</th>
+                    <th style="width:10%">규격</th>
+                    <th style="width:9%">수량</th>
+                    <th style="width:18%">단가</th>
+                    <th style="width:21%">금액</th>
+                </tr>
+            </thead>
+            <tbody>${rowsHTML}</tbody>
+            <tfoot>
+                <tr class="q-foot-row">
+                    <td colspan="3">소계</td>
+                    <td colspan="3" class="txt-right">
+                        <b>${won(calc.supply)}</b>
+                    </td>
+                </tr>
+                ${(vatType && vatType !== 'free') ? `
+                <tr class="q-foot-row">
+                    <td colspan="3">부가세(10%)</td>
+                    <td colspan="3" class="txt-right">
+                        <b>${won(calc.tax)}</b>
+                    </td>
+                </tr>` : ''}
+                <tr class="q-foot-total">
+                    <td colspan="3">합&nbsp;&nbsp;&nbsp;계</td>
+                    <td colspan="3" class="txt-right" style="font-size:15px;">
+                        <b>₩ ${won(calc.total)}</b>
+                    </td>
+                </tr>
+            </tfoot>
+        </table>
+
+        <!-- 비고 / 계좌 -->
+        ${footerHTML}
+
     </div>`;
 }
 
+/* ════════════════════════════════════════
+   실행
+════════════════════════════════════════ */
 render();
 </script>
-<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 </body>
 </html>
