@@ -2105,8 +2105,25 @@
         <div class="form-item"><label>휴대폰번호</label><input type="text" id="my-mobile-1"></div>
         <div class="form-item"><label>계좌번호 1</label><input type="text" id="my-account1-1" placeholder="예: 농협 123-456-789012 홍길동"></div>
         <div class="form-item"><label>계좌번호 2</label><input type="text" id="my-account2-1" placeholder="예: 국민 123401-04-123456 홍길동"></div>
+        <!-- 사업자 1 도장 -->
         <div class="form-item full">
             <label>도장 이미지 (90px 내외 추천)</label>
+            <div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:6px;">
+                <input type="text" id="my-seal-url-1"
+                       placeholder="https://miraecom1-netizen.github.io/mirae/seal.png"
+                       style="flex:1;font-size:12px;"
+                       oninput="applySealUrl('biz1','my-seal-url-1','my-seal-preview-1')">
+                <button type="button"
+                        onclick="applySealUrl('biz1','my-seal-url-1','my-seal-preview-1')"
+                        style="background:#1a73e8;color:white;border:none;border-radius:8px;
+                               padding:8px 12px;font-size:12px;font-weight:bold;cursor:pointer;
+                               white-space:nowrap;">
+                    🔗 URL 적용
+                </button>
+            </div>
+            <div style="font-size:11px;color:#888;margin-bottom:6px;">
+                또는 파일로 직접 업로드:
+            </div>
             <input type="file" id="my-seal-1" accept="image/*" onchange="readSeal('biz1',this)">
             <img id="my-seal-preview-1" style="max-width:90px;margin-top:6px;display:none">
         </div>
@@ -2123,8 +2140,25 @@
         <div class="form-item"><label>휴대폰번호</label><input type="text" id="my-mobile-2"></div>
         <div class="form-item"><label>계좌번호 1</label><input type="text" id="my-account1-2" placeholder="예: 농협 123-456-789012 홍길동"></div>
         <div class="form-item"><label>계좌번호 2</label><input type="text" id="my-account2-2" placeholder="예: 국민 123401-04-123456 홍길동"></div>
+        <!-- 사업자 2 도장 -->
         <div class="form-item full">
             <label>도장 이미지 (90px 내외 추천)</label>
+            <div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:6px;">
+                <input type="text" id="my-seal-url-2"
+                       placeholder="https://miraecom1-netizen.github.io/mirae/seal2.png"
+                       style="flex:1;font-size:12px;"
+                       oninput="applySealUrl('biz2','my-seal-url-2','my-seal-preview-2')">
+                <button type="button"
+                        onclick="applySealUrl('biz2','my-seal-url-2','my-seal-preview-2')"
+                        style="background:#1a73e8;color:white;border:none;border-radius:8px;
+                               padding:8px 12px;font-size:12px;font-weight:bold;cursor:pointer;
+                               white-space:nowrap;">
+                    🔗 URL 적용
+                </button>
+            </div>
+            <div style="font-size:11px;color:#888;margin-bottom:6px;">
+                또는 파일로 직접 업로드:
+            </div>
             <input type="file" id="my-seal-2" accept="image/*" onchange="readSeal('biz2',this)">
             <img id="my-seal-preview-2" style="max-width:90px;margin-top:6px;display:none">
         </div>
@@ -2141,8 +2175,25 @@
         <div class="form-item"><label>휴대폰번호</label><input type="text" id="my-mobile-3"></div>
         <div class="form-item"><label>계좌번호 1</label><input type="text" id="my-account1-3" placeholder="예: 농협 123-456-789012 홍길동"></div>
         <div class="form-item"><label>계좌번호 2</label><input type="text" id="my-account2-3" placeholder="예: 국민 123401-04-123456 홍길동"></div>
+        <!-- 사업자 3 도장 -->
         <div class="form-item full">
             <label>도장 이미지 (90px 내외 추천)</label>
+            <div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:6px;">
+                <input type="text" id="my-seal-url-3"
+                       placeholder="https://miraecom1-netizen.github.io/mirae/seal3.png"
+                       style="flex:1;font-size:12px;"
+                       oninput="applySealUrl('biz3','my-seal-url-3','my-seal-preview-3')">
+                <button type="button"
+                        onclick="applySealUrl('biz3','my-seal-url-3','my-seal-preview-3')"
+                        style="background:#1a73e8;color:white;border:none;border-radius:8px;
+                               padding:8px 12px;font-size:12px;font-weight:bold;cursor:pointer;
+                               white-space:nowrap;">
+                    🔗 URL 적용
+                </button>
+            </div>
+            <div style="font-size:11px;color:#888;margin-bottom:6px;">
+                또는 파일로 직접 업로드:
+            </div>
             <input type="file" id="my-seal-3" accept="image/*" onchange="readSeal('biz3',this)">
             <img id="my-seal-preview-3" style="max-width:90px;margin-top:6px;display:none">
         </div>
@@ -2371,102 +2422,104 @@ function shareDocToKakao(type, data) {
 
     const params = new URLSearchParams();
     params.set('type',        type);
-    params.set('receiver',    data.receiver   || data.name || '');
+    params.set('receiver',    String(data.receiver || data.name || '').slice(0, 20));
     params.set('total',       String(data.total || 0));
-    params.set('date',        data.date        || '');
-    params.set('vatType',     data.vatType     || 'included');
+    params.set('date',        data.date || '');
+    params.set('vatType',     data.vatType || 'included');
 
     // 공급받는자 정보
-    params.set('phone',       data.phone       || '');
-    params.set('receiverAddr',data.receiverAddr || data.addr || '');
-    params.set('title',       data.title        || '');
+    params.set('phone',        String(data.phone || '').slice(0, 20));
+    params.set('receiverAddr', String(data.receiverAddr || data.addr || '').slice(0, 30));
+    params.set('title',        String(data.title || '').slice(0, 20));
 
     // 공급자 정보
-    params.set('bizName',    data.bizName    || biz.bizName    || '');
-    params.set('bizNum',     data.bizNum     || biz.bizNum     || '');
-    params.set('repName',    data.repName    || biz.repName    || '');
-    params.set('bizAddress', data.bizAddress || biz.address    || '');
-    params.set('bizType',    data.bizType    || biz.bizType    || '');
-    params.set('bizItem',    data.bizItem    || biz.bizItem    || '');
-    params.set('bizTel',     data.bizTel     || biz.tel || biz.mobile || '');
-    params.set('account',    data.account    || biz.account1   || '');
+    params.set('bizName',     String(data.bizName || biz.bizName || '').slice(0, 20));
+    params.set('bizNum',      String(data.bizNum || biz.bizNum || '').slice(0, 20));
+    params.set('repName',     String(data.repName || biz.repName || '').slice(0, 12));
+    params.set('bizAddress',  String(data.bizAddress || biz.address || '').slice(0, 30));
+    params.set('bizType',     String(data.bizType || biz.bizType || '').slice(0, 12));
+    params.set('bizItem',     String(data.bizItem || biz.bizItem || '').slice(0, 12));
+    params.set('bizTel',      String(data.bizTel || biz.tel || biz.mobile || '').slice(0, 20));
+    params.set('account',     String(data.account || biz.account1 || '').slice(0, 30));
 
-    if (data.note) params.set('note', data.note);
+    if (data.note) {
+        params.set('note', String(data.note).slice(0, 30));
+    }
 
-    // ★ 도장은 URL 형식일 때만 전달 (base64는 URL이 너무 길어 카카오 오류 발생)
+    // 도장은 URL 형식만 전달
     const sealData = biz.seal || '';
     if (sealData && sealData.startsWith('http')) {
         params.set('seal', sealData);
     }
-    // base64 도장은 전달하지 않음 (카카오 Internal Server Error 방지)
 
-    // ★ 품목 전체 정보 (encodeURIComponent 제거 - URLSearchParams가 자동 처리)
+    function buildItemStr(items, compact = false) {
+        return (items || [])
+            .filter(it => String(it.name || '').trim())
+            .map(it => compact
+                ? [
+                    encodeURIComponent(String(it.name || '').slice(0, 15)),
+                    '',
+                    '',
+                    '',
+                    it.amt != null ? it.amt : 0
+                ].join('::')
+                : [
+                    encodeURIComponent(String(it.name || '').slice(0, 20)),
+                    encodeURIComponent(String(it.spec || '').slice(0, 10)),
+                    (it.qty   != null && it.qty   !== '') ? it.qty   : '',
+                    (it.price != null && it.price !== '') ? it.price : '',
+                    it.amt != null ? it.amt : 0
+                ].join('::')
+            )
+            .join('||');
+    }
+
+    function buildUrl() {
+        return `${VIEWER_BASE}?${params.toString()}`;
+    }
+
+    // 1차: 전체 품목
     if (data.itemsArr && data.itemsArr.length) {
-        const itemStr = data.itemsArr
-            .filter(it => String(it.name || '').trim())
-            .map(it => [
-                String(it.name  || ''),
-                String(it.spec  || ''),
-                (it.qty   != null && it.qty   !== '') ? it.qty   : '',
-                (it.price != null && it.price !== '') ? it.price : '',
-                it.amt != null ? it.amt : 0
-            ].join('::'))
-            .join('||');
-        if (itemStr) params.set('items', itemStr);
+        const fullItemStr = buildItemStr(data.itemsArr, false);
+        if (fullItemStr) params.set('items', fullItemStr);
     } else if (data.items) {
-        params.set('items',
-            String(data.items) + '::' + (data.total || 0));
+        params.set(
+            'items',
+            encodeURIComponent(String(data.items).slice(0, 30)) + '::' + (data.total || 0)
+        );
     }
 
-    let finalUrl = `${VIEWER_BASE}?${params.toString()}`;
+    let finalUrl = buildUrl();
 
-    // ★ 카카오 모바일 10KB(10240바이트) 제한 대응
-    // 단계적으로 축약
-
-    // 1단계: URL이 1500자 초과 시 품목 3개로 제한
-    if (finalUrl.length > 1500 && data.itemsArr && data.itemsArr.length > 3) {
-        const shortItemStr = data.itemsArr
-            .slice(0, 3)
-            .filter(it => String(it.name || '').trim())
-            .map(it => [
-                String(it.name || '').slice(0, 10),
-                '',
-                '',
-                '',
-                it.amt != null ? it.amt : 0
-            ].join('::'))
-            .join('||');
+    // 2차: URL 길면 품목 5개 축약
+    if (finalUrl.length > 1500 && data.itemsArr && data.itemsArr.length > 5) {
+        const shortItemStr = buildItemStr(data.itemsArr.slice(0, 5), true);
         params.set('items', shortItemStr);
-        finalUrl = `${VIEWER_BASE}?${params.toString()}`;
+        finalUrl = buildUrl();
     }
 
-    // 2단계: 아직도 1200자 초과 시 품목 1개 + 합계만
-    if (finalUrl.length > 1200) {
-        const firstItem = data.itemsArr && data.itemsArr.length
-            ? String(data.itemsArr[0].name || '').slice(0, 10) + (data.itemsArr.length > 1 ? ` 외 ${data.itemsArr.length-1}건` : '')
-            : String(data.items || '').slice(0, 20);
-        params.set('items', firstItem + '::' + (data.total || 0));
-        // 비고, 주소 등 긴 파라미터 제거
+    // 3차: still too long -> note 제거
+    if (finalUrl.length > 1500 && params.get('note')) {
         params.delete('note');
-        params.delete('receiverAddr');
-        params.delete('bizAddress');
-        finalUrl = `${VIEWER_BASE}?${params.toString()}`;
+        finalUrl = buildUrl();
     }
 
-    // 3단계: 여전히 1000자 초과 시 최소 정보만
-    if (finalUrl.length > 1000) {
-        const minParams = new URLSearchParams();
-        minParams.set('type',     params.get('type') || 'quote');
-        minParams.set('receiver', (params.get('receiver') || '').slice(0, 15));
-        minParams.set('total',    params.get('total') || '0');
-        minParams.set('date',     params.get('date') || '');
-        minParams.set('bizName',  (params.get('bizName') || '').slice(0, 15));
-        minParams.set('bizTel',   params.get('bizTel') || '');
-        minParams.set('account',  (params.get('account') || '').slice(0, 30));
-        finalUrl = `${VIEWER_BASE}?${minParams.toString()}`;
+    // 4차: still too long -> 주소/제목 더 축약
+    if (finalUrl.length > 1500) {
+        params.set('receiverAddr', String(params.get('receiverAddr') || '').slice(0, 20));
+        params.set('bizAddress',   String(params.get('bizAddress') || '').slice(0, 20));
+        params.set('title',        String(params.get('title') || '').slice(0, 12));
+        finalUrl = buildUrl();
     }
 
-    console.log('[카카오] 최종 URL 길이:', finalUrl.length, 'bytes');
+    // 5차: still too long -> 첫 1개 품목만
+    if (finalUrl.length > 1500 && data.itemsArr && data.itemsArr.length) {
+        const oneItemStr = buildItemStr(data.itemsArr.slice(0, 1), true);
+        params.set('items', oneItemStr);
+        finalUrl = buildUrl();
+    }
+
+    console.log('[카카오 공유] URL 길이:', finalUrl.length);
 
     const titles = {
         quote:     '📋 견적서',
@@ -2476,14 +2529,107 @@ function shareDocToKakao(type, data) {
         tax:       '🧾 세금계산서',
         rental:    '🖨️ 렌탈 청구서'
     };
-    const docTitle = `${titles[type]||'📄 문서'} - ${data.receiver||data.name||'고객'} 귀중`;
+
+    // ════════════════════════════════════
+    // 📱 모바일 / 💻 PC 구분
+    // ════════════════════════════════════
+    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+
+    // ════════════════════════════════════
+    // 📱 모바일 → 카카오톡 바로 전송 (간단 버전 + 품목요약 + 계좌)
+    // ════════════════════════════════════
+    if (isMobile) {
+        // ★ 모바일: 핵심 정보만 간단하게 (200자 제한 회피)
+        const docTitleM     = titles[type] || '📄 문서';
+        const receiverName  = data.receiver || data.name || '고객';
+        const totalAmount   = Number(data.total || 0).toLocaleString();
+        const senderName    = data.bizName || biz.bizName || '';
+        const senderTel     = data.bizTel  || biz.tel     || biz.mobile || '';
+        const accountInfo   = data.account || biz.account1 || '';
+
+        // ★ 품목 요약 : "첫번째품목 외 N건" 형식
+        const validItems = (data.itemsArr || [])
+            .filter(it => String(it.name || '').trim());
+
+        let itemSummary = '';
+        if (validItems.length > 0) {
+            const firstName = validItems[0].name;
+            if (validItems.length === 1) {
+                itemSummary = `📦 품목 : ${firstName}`;
+            } else {
+                itemSummary = `📦 품목 : ${firstName} 외 ${validItems.length - 1}건`;
+            }
+        } else if (data.items) {
+            const itemStr = String(data.items).trim();
+            if (itemStr) {
+                itemSummary = `📦 품목 : ${itemStr.length > 20 ? itemStr.substring(0, 20) + '...' : itemStr}`;
+            }
+        }
+
+        // 간단 메시지 (핵심 + 품목요약 + 계좌)
+        const simpleMsg = [
+            `${docTitleM}`,
+            ``,
+            `📌 ${receiverName} 귀중`,
+            `📅 ${data.date || ''}`,
+            itemSummary,
+            `💰 합계 : ${totalAmount}원`,
+            accountInfo ? `🏦 입금계좌 : ${accountInfo}` : '',
+            ``,
+            `🏢 ${senderName}`,
+            senderTel ? `📞 ${senderTel}` : ''
+        ].filter(Boolean).join('\n');
+
+        // ★ 카카오 SDK로 바로 전송 (간단 버전)
+        if (initKakaoSDK()) {
+            try {
+                Kakao.Share.sendDefault({
+                    objectType: 'text',
+                    text: simpleMsg,
+                    link: {
+                        mobileWebUrl: 'https://miraecom1-netizen.github.io/mirae/',
+                        webUrl:       'https://miraecom1-netizen.github.io/mirae/'
+                    }
+                });
+                if (typeof showAlarmToast === 'function') {
+                    showAlarmToast('📤 카카오톡으로 전송되었습니다!', 'success');
+                }
+                return;
+            } catch(e) {
+                console.warn('[카카오 모바일] text 공유 실패:', e);
+            }
+        }
+
+        // ★ SDK 실패 시 fallback : 클립보드 복사 후 카카오톡 앱 열기
+        navigator.clipboard.writeText(simpleMsg)
+            .catch(() => {
+                const ta = document.createElement('textarea');
+                ta.value = simpleMsg;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+            });
+
+        // 카카오톡 앱 바로 열기
+        setTimeout(() => {
+            window.location.href = 'kakaotalk://';
+        }, 300);
+
+        if (typeof showAlarmToast === 'function') {
+            showAlarmToast('📋 내용이 복사되었습니다! 카카오톡에서 붙여넣기 하세요.', 'success');
+        }
+        return;
+    }
+
+    // ════════════════════════════════════
+    // 💻 PC → 기존 feed 방식 (상세 정보 + 링크 + 버튼)
+    // ════════════════════════════════════
+    const docTitle = `${titles[type] || '📄 문서'} - ${data.receiver || data.name || '고객'} 귀중`;
     const desc = [
-        data.total
-            ? `금액: ${Number(data.total).toLocaleString()}원` : '',
-        data.account || biz.account1
-            ? `계좌: ${data.account || biz.account1}` : '',
-        (data.bizName || biz.bizName)
-            ? `발신: ${data.bizName || biz.bizName}` : ''
+        data.total ? `금액: ${Number(data.total).toLocaleString()}원` : '',
+        (data.account || biz.account1) ? `계좌: ${data.account || biz.account1}` : '',
+        (data.bizName || biz.bizName) ? `발신: ${data.bizName || biz.bizName}` : ''
     ].filter(Boolean).join('\n');
 
     if (initKakaoSDK()) {
@@ -2496,22 +2642,23 @@ function shareDocToKakao(type, data) {
                     imageUrl: 'https://miraecom1-netizen.github.io/mirae/thumb.png',
                     link: {
                         mobileWebUrl: finalUrl,
-                        webUrl:       finalUrl
+                        webUrl: finalUrl
                     }
                 },
                 buttons: [{
                     title: '📄 문서 확인하기',
                     link: {
                         mobileWebUrl: finalUrl,
-                        webUrl:       finalUrl
+                        webUrl: finalUrl
                     }
                 }]
             });
             return;
-        } catch(e) {
+        } catch (e) {
             console.warn('[카카오 공유] SDK 실패:', e);
         }
     }
+
     shareQuoteKakao(
         finalUrl,
         data.receiver || data.name || '고객',
@@ -6462,7 +6609,28 @@ function checkLowStock(){
 ═══════════════════════════════════════════ */
 function openMyInfoModal(){if(!isAdmin()){alert('⛔ 관리자 권한이 필요한 기능입니다.');return;}
     document.getElementById('my-global-kakao-link').value=myBizInfo.globalKakaoLink||'';
-    ['biz1','biz2','biz3'].forEach(key=>{const n=key==='biz1'?'1':key==='biz2'?'2':'3';const b=myBizInfo[key];const map={bizNum:'biz-num',bizName:'biz-name',repName:'rep-name',address:'address',bizType:'biz-type',bizItem:'biz-item',tel:'tel',mobile:'mobile',account1:'account1',account2:'account2'};Object.entries(map).forEach(([k,f])=>{document.getElementById(`my-${f}-${n}`).value=b[k]||'';});const img=document.getElementById(`my-seal-preview-${n}`);if(img){if(b.seal){img.src=b.seal;img.style.display='block';}else img.style.display='none';}});
+    ['biz1','biz2','biz3'].forEach(key=>{
+        const n=key==='biz1'?'1':key==='biz2'?'2':'3';
+        const b=myBizInfo[key];
+        const map={bizNum:'biz-num',bizName:'biz-name',repName:'rep-name',address:'address',bizType:'biz-type',bizItem:'biz-item',tel:'tel',mobile:'mobile',account1:'account1',account2:'account2'};
+        Object.entries(map).forEach(([k,f])=>{document.getElementById(`my-${f}-${n}`).value=b[k]||'';});
+
+        // URL 필드 + 미리보기 동기화
+        const img = document.getElementById(`my-seal-preview-${n}`);
+        const sealUrlEl = document.getElementById(`my-seal-url-${n}`);
+        if (b.seal) {
+            if (img) { img.src = b.seal; img.style.display = 'block'; }
+            // URL 형식이면 URL 입력란에도 표시
+            if (sealUrlEl && b.seal.startsWith('http')) {
+                sealUrlEl.value = b.seal;
+            } else if (sealUrlEl) {
+                sealUrlEl.value = ''; // base64는 URL란 비움
+            }
+        } else {
+            if (img) img.style.display = 'none';
+            if (sealUrlEl) sealUrlEl.value = '';
+        }
+    });
 
     // ★ 카카오 앱키 불러오기
     const kakaoKeyEl = document.getElementById('my-kakao-app-key');
@@ -8192,6 +8360,41 @@ function handleServicePhotoInputChange(kind,input){if(input?.files?.length)servi
 function previewServicePhoto(kind){const input=getServicePhotoInput(kind);if(input?.files?.[0]){const objUrl=URL.createObjectURL(input.files[0]);openPhotoWindow(objUrl);return;}const existing=servicePhotoDeleteState[kind]?'':getExistingServicePhoto(kind);if(existing){openPhotoWindow(existing);return;}alert('첨부된 사진이 없습니다.');}
 function removeServicePhoto(kind){const input=getServicePhotoInput(kind);const hasNew=!!(input?.files?.length);const hasExisting=!servicePhotoDeleteState[kind]&&!!getExistingServicePhoto(kind);if(!hasNew&&!hasExisting){alert('삭제할 사진이 없습니다.');return;}if(!confirm('이 사진을 삭제할까요?'))return;if(input)input.value='';if(hasExisting)servicePhotoDeleteState[kind]=true;updateServicePhotoUI();isFormDirty=true;}
 function bindServicePhotoInputs(){['before','after'].forEach(kind=>{const input=getServicePhotoInput(kind);if(!input||input.dataset.photoBound==='1')return;input.dataset.photoBound='1';input.addEventListener('change',()=>handleServicePhotoInputChange(kind,input));});updateServicePhotoUI();}
+
+/* ── 도장 URL 적용 함수 ── */
+function applySealUrl(bizKey, urlInputId, previewId) {
+    const urlEl    = document.getElementById(urlInputId);
+    const previewEl = document.getElementById(previewId);
+    if (!urlEl) return;
+
+    const url = urlEl.value.trim();
+    if (!url) return;
+
+    if (!url.startsWith('http')) {
+        alert('http:// 또는 https:// 로 시작하는 URL을 입력하세요.');
+        return;
+    }
+
+    // 이미지 로딩 확인
+    const testImg = new Image();
+    testImg.onload = () => {
+        // ★ URL을 그대로 seal에 저장 (base64 아닌 URL 형태)
+        if (!myBizInfo[bizKey]) myBizInfo[bizKey] = {};
+        myBizInfo[bizKey].seal = url;
+
+        // 미리보기 표시
+        if (previewEl) {
+            previewEl.src = url;
+            previewEl.style.display = 'block';
+        }
+        isFormDirty = true;
+        showAlarmToast('✅ 도장 URL이 적용되었습니다! 저장 버튼을 눌러 확정하세요.', 'success');
+    };
+    testImg.onerror = () => {
+        alert('❌ 이미지를 불러올 수 없습니다.\nURL을 다시 확인해 주세요.\n\n' + url);
+    };
+    testImg.src = url;
+}
 async function saveService(){
     const btnSave=document.getElementById('btn-s-save');const sIdx=document.getElementById('edit-service-idx').value;
     const customer=customers.find(c=>c.id==currentId);if(!customer.services)customer.services=[];
@@ -9161,7 +9364,7 @@ function cancelQuoteEdit(){if(!confirm('현재 견적 수정 모드를 종료하
 function resetQuoteForm(skipConfirm=false){if(!skipConfirm&&!confirm("초기화하시겠습니까?"))return;document.getElementById('quoteItemBody').innerHTML='';quoteRowId=0;selectedQuoteCustomerId=null;editingQuoteIndex=null;['q-issue-date','q-valid','q-receiver','q-receiver-tel','q-receiver-addr','q-title','q-note'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});if(document.getElementById('q-account-select'))document.getElementById('q-account-select').value='';updateQuoteAccountOptions('');document.getElementById('q-issue-date').value=getKoreanDate();document.querySelector('input[name="q-vat-type"][value="included"]').checked=true;addQuoteRow();addQuoteRow();addQuoteRow();recalcQuote();renderQuoteUnpaidSection();clearQuotePhotoSheet(true);closeQuoteAc();closeQuoteHistoryAc();syncQuotePhotoSummary();updateQuoteSaveButtonState();isFormDirty=false;}
 function saveQuoteHistory(docType='quote'){const receiver=document.getElementById('q-receiver').value.trim();if(!receiver)return alert("수신처(고객명)를 입력하세요.");const vt=document.querySelector('input[name="q-vat-type"]:checked').value;const rows=document.getElementById('quoteItemBody').rows;const items=[];for(let row of rows){const id=row.id.replace('qrow-','');const name=document.getElementById(`qn-${id}`).value.trim();if(!name)continue;items.push({name,spec:document.getElementById(`qs-${id}`).value,qty:document.getElementById(`qq-${id}`).value,price:document.getElementById(`qp-${id}`).value,amt:(parseFloat(document.getElementById(`qq-${id}`).value)||0)*(parseFloat(document.getElementById(`qp-${id}`).value)||0)});}if(!items.length)return alert("품목을 1개 이상 입력하세요.");const photoSheet=collectQuotePhotoSheet();const total=parseInt(document.getElementById('qt-total').textContent.replace(/[^0-9]/g,''))||0;const base=editingQuoteIndex!==null&&quotes[editingQuoteIndex]?quotes[editingQuoteIndex]:null;const normalizedDocType=(docType==='invoice'||docType==='statement')?docType:'quote';const titleEl=document.getElementById('q-title');const forcedTitle=getQuoteHistoryDocTitle(normalizedDocType);const currentTitle=(titleEl&&titleEl.value.trim())||'';if(titleEl&&normalizedDocType!=='quote')titleEl.value=forcedTitle;if(titleEl&&normalizedDocType==='quote'&&(!currentTitle||currentTitle==='청구서'||currentTitle==='거래명세서'))titleEl.value='견적서';const storedTitle=normalizedDocType==='quote'?((titleEl&&titleEl.value.trim())||'견적서'):forcedTitle;const payload={id:base&&base.id?base.id:Date.now(),no:base&&base.no?base.no:quotes.length+1,issueDate:document.getElementById('q-issue-date').value,valid:document.getElementById('q-valid').value,receiver,tel:document.getElementById('q-receiver-tel').value,addr:document.getElementById('q-receiver-addr').value,title:storedTitle,note:document.getElementById('q-note').value,titleRaw:storedTitle,account:document.getElementById('q-account-select').value.trim(),vatType:vt,items,total,bizKey:selectedQuoteBiz,photoSheet,photoCount:(photoSheet.photos||[]).length,updatedAt:Date.now(),docType:normalizedDocType};if(base){quotes[editingQuoteIndex]={...base,...payload};}else{quotes.push(payload);editingQuoteIndex=quotes.length-1;}quotes.forEach((q,i)=>q.no=i+1);syncLocalData();isFormDirty=false;renderQuoteHistory();updateQuoteSaveButtonState();alert(base?`${forcedTitle}가 수정 저장되었습니다!`:`${forcedTitle}가 저장되었습니다!`);}
 function renderQuoteHistory(){const tb=document.getElementById('quoteHistoryBody');if(!tb)return;tb.innerHTML='';const keyword=((document.getElementById('quote-history-search')||{}).value||'');const entries=getFilteredQuoteEntries(keyword);updateQuoteHistorySummary(keyword,entries.length);if(!quotes.length){tb.innerHTML='<tr><td colspan="8" style="color:#999;padding:18px;">저장된 견적 이력이 없습니다.</td></tr>';return;}if(!entries.length){tb.innerHTML='<tr><td colspan="8" style="color:#999;padding:18px;">검색 조건에 맞는 견적이 없습니다.</td></tr>';return;}entries.slice().reverse().forEach(({q,idx})=>{const bl=getBizLabel(q.bizKey||'biz1');const bc=getBizColor(q.bizKey||'biz1');const bb=getBizBg(q.bizKey||'biz1');const badge=`<span style="font-size:11px;font-weight:bold;color:${bc};background:${bb};padding:2px 7px;border-radius:10px;border:1px solid ${bc};">${bl}</span>`;const photoCount=(q.photoCount!==undefined?q.photoCount:((q.photoSheet&&q.photoSheet.photos)?q.photoSheet.photos.length:0))||0;const photoBadge=photoCount?`<span class="quote-photo-count-badge">📷 ${photoCount}장</span>`:'-';const docType=getQuoteHistoryDocType(q);const kakaoLabel=getQuoteHistoryKakaoLabel(docType);const printLabel=getQuoteHistoryPrintLabel(docType);const titleLabel=q.title||getQuoteHistoryDocTitle(docType);const row=tb.insertRow();if(editingQuoteIndex===idx)row.style.background='#fff8e1';row.innerHTML=`<td><b>${q.no}</b></td><td>${q.issueDate||'-'}</td><td><b>${q.receiver||'-'}</b>${q.tel?`<div style="font-size:11px;color:#888;">${escapeHtml(q.tel)}</div>`:''}</td><td style="text-align:left;">${titleLabel}</td><td style="font-weight:bold;color:var(--quote);">${(q.total||0).toLocaleString()}원</td><td>${badge}</td><td>${photoBadge}</td><td style="display:flex;gap:3px;justify-content:center;flex-wrap:wrap;"><button class="btn-action" style="background:#fee500;color:#3c1e1e;font-weight:bold;" onclick="shareQuoteHistoryToKakao(${idx})">${kakaoLabel}</button><button class="btn-action" style="background:var(--quote);color:white;" onclick="printQuoteById(${idx})">${printLabel}</button><button class="btn-action" style="background:#1565c0;color:white;" onclick="printQuotePhotoSheetById(${idx})">🖼️사진</button><button class="btn-action" style="background:var(--primary);color:white;" onclick="loadQuoteToForm(${idx})">📋불러오기</button><button class="btn-action" style="color:red;background:white;border:1px solid red;" onclick="deleteQuote(${idx})">삭제</button></td>`;});}
-function shareQuoteHistoryToKakao(idx){const q=quotes[idx];if(!q)return;const docType=getQuoteHistoryDocType(q);const biz=(myBizInfo[q.bizKey||'biz1']&&myBizInfo[q.bizKey||'biz1'].bizName)?myBizInfo[q.bizKey||'biz1']:myBizInfo.biz1;shareDocToKakao(docType,{receiver:String(q.receiver||''),itemsArr:(q.items||[]).map(it=>({name:String(it.name||''),spec:String(it.spec||''),qty:it.qty,price:it.price,amt:Number(it.amt)||(Number(it.qty||1)*Number(it.price||0))})),total:Number(q.total||0),date:String(q.issueDate||''),bizName:String(biz.bizName||''),bizTel:String(biz.tel||biz.mobile||''),account:String(q.account||''),phone:String(q.tel||'')});}
+function shareQuoteHistoryToKakao(idx){const q=quotes[idx];if(!q)return;const docType=getQuoteHistoryDocType(q);const biz=(myBizInfo[q.bizKey||'biz1']&&myBizInfo[q.bizKey||'biz1'].bizName)?myBizInfo[q.bizKey||'biz1']:myBizInfo.biz1;shareDocToKakao(docType,{receiver:String(q.receiver||''),items:summarizeItemsForTax(q.items||[]),total:Number(q.total||0),date:String(q.issueDate||''),bizName:String(biz.bizName||''),bizTel:String(biz.tel||biz.mobile||''),account:String(q.account||''),phone:String(q.tel||'')});}
 function loadQuoteToForm(idx){const q=quotes[idx];if(!q)return;editingQuoteIndex=idx;updateQuoteSaveButtonState();selectQuoteBiz(q.bizKey||'biz1');document.getElementById('q-issue-date').value=q.issueDate||getKoreanDate();document.getElementById('q-valid').value=q.valid||'';document.getElementById('q-receiver').value=q.receiver||'';document.getElementById('q-receiver-tel').value=q.tel||'';document.getElementById('q-receiver-addr').value=q.addr||'';document.getElementById('q-title').value=q.title||'';document.getElementById('q-note').value=q.note||'';selectedQuoteCustomerId=(customers.find(c=>normalizeQuoteLookupText(c.name)===normalizeQuoteLookupText(q.receiver||'')&&(!normalizeQuoteLookupPhone(q.tel||'')||normalizeQuoteLookupPhone(c.phone)===normalizeQuoteLookupPhone(q.tel||'')))||{}).id||null;updateQuoteAccountOptions(q.account||'');document.querySelector(`input[name="q-vat-type"][value="${q.vatType||'included'}"]`).checked=true;document.getElementById('quoteItemBody').innerHTML='';quoteRowId=0;(q.items||[]).forEach(it=>addQuoteRow(it.name,it.spec,it.qty,it.price));loadQuotePhotoSheet(q.photoSheet||{});if(!document.getElementById('q-photo-date').value)document.getElementById('q-photo-date').value=q.issueDate||getKoreanDate();recalcQuote();renderQuoteUnpaidSection();syncQuotePhotoSummary();window.scrollTo({top:0,behavior:'smooth'});alert("견적이 불러와졌습니다. 수정 후 '수정 저장'을 누르면 기존 견적이 갱신됩니다.");}
 function deleteQuote(idx){if(!confirm("삭제?"))return;quotes.splice(idx,1);quotes.forEach((q,i)=>q.no=i+1);if(editingQuoteIndex===idx)editingQuoteIndex=null;else if(editingQuoteIndex!==null&&idx<editingQuoteIndex)editingQuoteIndex--;syncLocalData();renderQuoteHistory();updateQuoteSaveButtonState();}
 function printQuoteById(idx){const q=quotes[idx];if(!q)return;loadQuoteToForm(idx);setTimeout(()=>printQuote(getQuoteHistoryDocType(q)),200);}
