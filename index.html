@@ -1561,6 +1561,16 @@
             onclick="cancelQuoteEdit()">
         ✖ 수정 취소
     </button>
+    <button id="btn-photo-print"
+            style="background:#0288d1;color:white;flex:2;min-width:150px;font-size:14px;"
+            onclick="printQuotePhotoSheet()">
+        🖼️ 사진대지 인쇄/PDF
+    </button>
+    <button id="btn-photo-save"
+            style="background:#00695c;color:white;flex:1;min-width:120px;"
+            onclick="saveQuotePhotoSheetOnly()">
+        💾 사진대지 저장
+    </button>
     <button style="background:var(--secondary);color:white;flex:1;min-width:90px;"
             onclick="resetQuoteForm()">
         🔄 초기화
@@ -2530,101 +2540,6 @@ function shareDocToKakao(type, data) {
         rental:    '🖨️ 렌탈 청구서'
     };
 
-    // ════════════════════════════════════
-    // 📱 모바일 / 💻 PC 구분
-    // ════════════════════════════════════
-    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-
-    // ════════════════════════════════════
-    // 📱 모바일 → 카카오톡 바로 전송 (간단 버전 + 품목요약 + 계좌)
-    // ════════════════════════════════════
-    if (isMobile) {
-        // ★ 모바일: 핵심 정보만 간단하게 (200자 제한 회피)
-        const docTitleM     = titles[type] || '📄 문서';
-        const receiverName  = data.receiver || data.name || '고객';
-        const totalAmount   = Number(data.total || 0).toLocaleString();
-        const senderName    = data.bizName || biz.bizName || '';
-        const senderTel     = data.bizTel  || biz.tel     || biz.mobile || '';
-        const accountInfo   = data.account || biz.account1 || '';
-
-        // ★ 품목 요약 : "첫번째품목 외 N건" 형식
-        const validItems = (data.itemsArr || [])
-            .filter(it => String(it.name || '').trim());
-
-        let itemSummary = '';
-        if (validItems.length > 0) {
-            const firstName = validItems[0].name;
-            if (validItems.length === 1) {
-                itemSummary = `📦 품목 : ${firstName}`;
-            } else {
-                itemSummary = `📦 품목 : ${firstName} 외 ${validItems.length - 1}건`;
-            }
-        } else if (data.items) {
-            const itemStr = String(data.items).trim();
-            if (itemStr) {
-                itemSummary = `📦 품목 : ${itemStr.length > 20 ? itemStr.substring(0, 20) + '...' : itemStr}`;
-            }
-        }
-
-        // 간단 메시지 (핵심 + 품목요약 + 계좌)
-        const simpleMsg = [
-            `${docTitleM}`,
-            ``,
-            `📌 ${receiverName} 귀중`,
-            `📅 ${data.date || ''}`,
-            itemSummary,
-            `💰 합계 : ${totalAmount}원`,
-            accountInfo ? `🏦 입금계좌 : ${accountInfo}` : '',
-            ``,
-            `🏢 ${senderName}`,
-            senderTel ? `📞 ${senderTel}` : ''
-        ].filter(Boolean).join('\n');
-
-        // ★ 카카오 SDK로 바로 전송 (간단 버전)
-        if (initKakaoSDK()) {
-            try {
-                Kakao.Share.sendDefault({
-                    objectType: 'text',
-                    text: simpleMsg,
-                    link: {
-                        mobileWebUrl: 'https://miraecom1-netizen.github.io/mirae/',
-                        webUrl:       'https://miraecom1-netizen.github.io/mirae/'
-                    }
-                });
-                if (typeof showAlarmToast === 'function') {
-                    showAlarmToast('📤 카카오톡으로 전송되었습니다!', 'success');
-                }
-                return;
-            } catch(e) {
-                console.warn('[카카오 모바일] text 공유 실패:', e);
-            }
-        }
-
-        // ★ SDK 실패 시 fallback : 클립보드 복사 후 카카오톡 앱 열기
-        navigator.clipboard.writeText(simpleMsg)
-            .catch(() => {
-                const ta = document.createElement('textarea');
-                ta.value = simpleMsg;
-                document.body.appendChild(ta);
-                ta.select();
-                document.execCommand('copy');
-                document.body.removeChild(ta);
-            });
-
-        // 카카오톡 앱 바로 열기
-        setTimeout(() => {
-            window.location.href = 'kakaotalk://';
-        }, 300);
-
-        if (typeof showAlarmToast === 'function') {
-            showAlarmToast('📋 내용이 복사되었습니다! 카카오톡에서 붙여넣기 하세요.', 'success');
-        }
-        return;
-    }
-
-    // ════════════════════════════════════
-    // 💻 PC → 기존 feed 방식 (상세 정보 + 링크 + 버튼)
-    // ════════════════════════════════════
     const docTitle = `${titles[type] || '📄 문서'} - ${data.receiver || data.name || '고객'} 귀중`;
     const desc = [
         data.total ? `금액: ${Number(data.total).toLocaleString()}원` : '',
@@ -6527,7 +6442,7 @@ function renderPopupSearchResult(kw){const m=getMatchedCustomers(kw.trim()?kw:''
 function onQuoteNameInput(rowId,val){
     activeQuoteRowId=rowId;quoteStockAcIdx=-1;
     const kw=val.toLowerCase().replace(/\s+/g,'');
-    const matched=stockItems.filter(s=>String(s.name||'').toLowerCase().replace(/\s+/g,'').includes(kw)||String(s.code||'').toLowerCase().replace(/\s+/g,'').includes(kw)||String(s.spec||'').toLowerCase().replace(/\s+/g,'').includes(kw)).slice(0,8);
+    const matched=stockItems.filter(s=>String(s.name||'').toLowerCase().replace(/\s+/g,'').includes(kw)||String(s.code||'').toLowerCase().replace(/\s+/g,'').includes(kw)||String(s.spec||'').toLowerCase().replace(/\s+/g,'').includes(kw)).sort((a,b)=>{const aStarts=String(a.name||'').toLowerCase().startsWith(kw);const bStarts=String(b.name||'').toLowerCase().startsWith(kw);if(aStarts&&!bStarts)return -1;if(!aStarts&&bStarts)return 1;return 0;}).slice(0,100);
     closeQuoteStockAc();
     if(!kw||!matched.length){recalcQuote();return;}
     const wrap=document.getElementById(`qn-wrap-${rowId}`);if(!wrap)return;
@@ -6544,7 +6459,7 @@ function onServiceNameInput(rowId,val){
     const wrap=document.getElementById(`sn-wrap-${rowId}`);if(!wrap)return;
     closeQuoteStockAc();
     if(!kw)return;
-    const matched=stockItems.filter(x=>String(x.name||'').toLowerCase().replace(/\s+/g,'').includes(kw)).slice(0,8);
+    const matched=stockItems.filter(x=>String(x.name||'').toLowerCase().replace(/\s+/g,'').includes(kw)).sort((a,b)=>{const aStarts=String(a.name||'').toLowerCase().startsWith(kw);const bStarts=String(b.name||'').toLowerCase().startsWith(kw);if(aStarts&&!bStarts)return -1;if(!aStarts&&bStarts)return 1;return 0;}).slice(0,100);
     if(!matched.length)return;
     const box=document.createElement('div');box.className='quote-stock-ac service-stock-ac';box.id=`sn-ac-${rowId}`;
     matched.forEach((s,i)=>{const item=document.createElement('div');item.className='quote-stock-ac-item';item.setAttribute('data-idx',i);item.innerHTML=`<span class="qs-name">${s.name}${s.code?` <small style="color:#999;">[${s.code}]</small>`:''}</span><span class="qs-info">${s.spec||''} | ${Number(s.price||0).toLocaleString()}원</span>`;item.onmousedown=e=>e.preventDefault();item.onclick=()=>selectServiceStockItem(rowId,s.id);box.appendChild(item);});
@@ -9363,7 +9278,68 @@ function updateQuoteSaveButtonState(){const quoteBtn=document.getElementById('bt
 function cancelQuoteEdit(){if(!confirm('현재 견적 수정 모드를 종료하고 새 견적 작성 상태로 돌아가시겠습니까?'))return;resetQuoteForm(true);}
 function resetQuoteForm(skipConfirm=false){if(!skipConfirm&&!confirm("초기화하시겠습니까?"))return;document.getElementById('quoteItemBody').innerHTML='';quoteRowId=0;selectedQuoteCustomerId=null;editingQuoteIndex=null;['q-issue-date','q-valid','q-receiver','q-receiver-tel','q-receiver-addr','q-title','q-note'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});if(document.getElementById('q-account-select'))document.getElementById('q-account-select').value='';updateQuoteAccountOptions('');document.getElementById('q-issue-date').value=getKoreanDate();document.querySelector('input[name="q-vat-type"][value="included"]').checked=true;addQuoteRow();addQuoteRow();addQuoteRow();recalcQuote();renderQuoteUnpaidSection();clearQuotePhotoSheet(true);closeQuoteAc();closeQuoteHistoryAc();syncQuotePhotoSummary();updateQuoteSaveButtonState();isFormDirty=false;}
 function saveQuoteHistory(docType='quote'){const receiver=document.getElementById('q-receiver').value.trim();if(!receiver)return alert("수신처(고객명)를 입력하세요.");const vt=document.querySelector('input[name="q-vat-type"]:checked').value;const rows=document.getElementById('quoteItemBody').rows;const items=[];for(let row of rows){const id=row.id.replace('qrow-','');const name=document.getElementById(`qn-${id}`).value.trim();if(!name)continue;items.push({name,spec:document.getElementById(`qs-${id}`).value,qty:document.getElementById(`qq-${id}`).value,price:document.getElementById(`qp-${id}`).value,amt:(parseFloat(document.getElementById(`qq-${id}`).value)||0)*(parseFloat(document.getElementById(`qp-${id}`).value)||0)});}if(!items.length)return alert("품목을 1개 이상 입력하세요.");const photoSheet=collectQuotePhotoSheet();const total=parseInt(document.getElementById('qt-total').textContent.replace(/[^0-9]/g,''))||0;const base=editingQuoteIndex!==null&&quotes[editingQuoteIndex]?quotes[editingQuoteIndex]:null;const normalizedDocType=(docType==='invoice'||docType==='statement')?docType:'quote';const titleEl=document.getElementById('q-title');const forcedTitle=getQuoteHistoryDocTitle(normalizedDocType);const currentTitle=(titleEl&&titleEl.value.trim())||'';if(titleEl&&normalizedDocType!=='quote')titleEl.value=forcedTitle;if(titleEl&&normalizedDocType==='quote'&&(!currentTitle||currentTitle==='청구서'||currentTitle==='거래명세서'))titleEl.value='견적서';const storedTitle=normalizedDocType==='quote'?((titleEl&&titleEl.value.trim())||'견적서'):forcedTitle;const payload={id:base&&base.id?base.id:Date.now(),no:base&&base.no?base.no:quotes.length+1,issueDate:document.getElementById('q-issue-date').value,valid:document.getElementById('q-valid').value,receiver,tel:document.getElementById('q-receiver-tel').value,addr:document.getElementById('q-receiver-addr').value,title:storedTitle,note:document.getElementById('q-note').value,titleRaw:storedTitle,account:document.getElementById('q-account-select').value.trim(),vatType:vt,items,total,bizKey:selectedQuoteBiz,photoSheet,photoCount:(photoSheet.photos||[]).length,updatedAt:Date.now(),docType:normalizedDocType};if(base){quotes[editingQuoteIndex]={...base,...payload};}else{quotes.push(payload);editingQuoteIndex=quotes.length-1;}quotes.forEach((q,i)=>q.no=i+1);syncLocalData();isFormDirty=false;renderQuoteHistory();updateQuoteSaveButtonState();alert(base?`${forcedTitle}가 수정 저장되었습니다!`:`${forcedTitle}가 저장되었습니다!`);}
-function renderQuoteHistory(){const tb=document.getElementById('quoteHistoryBody');if(!tb)return;tb.innerHTML='';const keyword=((document.getElementById('quote-history-search')||{}).value||'');const entries=getFilteredQuoteEntries(keyword);updateQuoteHistorySummary(keyword,entries.length);if(!quotes.length){tb.innerHTML='<tr><td colspan="8" style="color:#999;padding:18px;">저장된 견적 이력이 없습니다.</td></tr>';return;}if(!entries.length){tb.innerHTML='<tr><td colspan="8" style="color:#999;padding:18px;">검색 조건에 맞는 견적이 없습니다.</td></tr>';return;}entries.slice().reverse().forEach(({q,idx})=>{const bl=getBizLabel(q.bizKey||'biz1');const bc=getBizColor(q.bizKey||'biz1');const bb=getBizBg(q.bizKey||'biz1');const badge=`<span style="font-size:11px;font-weight:bold;color:${bc};background:${bb};padding:2px 7px;border-radius:10px;border:1px solid ${bc};">${bl}</span>`;const photoCount=(q.photoCount!==undefined?q.photoCount:((q.photoSheet&&q.photoSheet.photos)?q.photoSheet.photos.length:0))||0;const photoBadge=photoCount?`<span class="quote-photo-count-badge">📷 ${photoCount}장</span>`:'-';const docType=getQuoteHistoryDocType(q);const kakaoLabel=getQuoteHistoryKakaoLabel(docType);const printLabel=getQuoteHistoryPrintLabel(docType);const titleLabel=q.title||getQuoteHistoryDocTitle(docType);const row=tb.insertRow();if(editingQuoteIndex===idx)row.style.background='#fff8e1';row.innerHTML=`<td><b>${q.no}</b></td><td>${q.issueDate||'-'}</td><td><b>${q.receiver||'-'}</b>${q.tel?`<div style="font-size:11px;color:#888;">${escapeHtml(q.tel)}</div>`:''}</td><td style="text-align:left;">${titleLabel}</td><td style="font-weight:bold;color:var(--quote);">${(q.total||0).toLocaleString()}원</td><td>${badge}</td><td>${photoBadge}</td><td style="display:flex;gap:3px;justify-content:center;flex-wrap:wrap;"><button class="btn-action" style="background:#fee500;color:#3c1e1e;font-weight:bold;" onclick="shareQuoteHistoryToKakao(${idx})">${kakaoLabel}</button><button class="btn-action" style="background:var(--quote);color:white;" onclick="printQuoteById(${idx})">${printLabel}</button><button class="btn-action" style="background:#1565c0;color:white;" onclick="printQuotePhotoSheetById(${idx})">🖼️사진</button><button class="btn-action" style="background:var(--primary);color:white;" onclick="loadQuoteToForm(${idx})">📋불러오기</button><button class="btn-action" style="color:red;background:white;border:1px solid red;" onclick="deleteQuote(${idx})">삭제</button></td>`;});}
+/* ═══════════════════════════════════════════
+   사진대지 단독 저장 기능
+═══════════════════════════════════════════ */
+function saveQuotePhotoSheetOnly() {
+    const sheet = collectQuotePhotoSheet();
+    const photos = (sheet.photos || []).filter(p => p.image);
+
+    if (!photos.length) {
+        alert('사진대지에 첨부된 사진이 없습니다.\n사진을 1장 이상 첨부해 주세요.');
+        return;
+    }
+
+    const receiver = document.getElementById('q-receiver').value.trim();
+    const title    = document.getElementById('q-title').value.trim() || '사진대지';
+    const issueDate= document.getElementById('q-issue-date').value || getKoreanDate();
+    const bizKey   = selectedQuoteBiz || 'biz1';
+
+    // 기존 견적 이력에 사진대지 업데이트 (수정 모드) or 신규 저장
+    if (editingQuoteIndex !== null && quotes[editingQuoteIndex]) {
+        const q = quotes[editingQuoteIndex];
+        q.photoSheet  = sheet;
+        q.photoCount  = photos.length;
+        q.updatedAt   = Date.now();
+        syncLocalData();
+        renderQuoteHistory();
+        showAlarmToast(`✅ 사진대지가 업데이트되었습니다! (${photos.length}장)`, 'success');
+        return;
+    }
+
+    // 신규: 사진대지 전용 견적 이력으로 저장
+    const docType = 'photosheet';
+    const payload = {
+        id:          Date.now(),
+        no:          quotes.length + 1,
+        issueDate,
+        valid:       '',
+        receiver:    receiver || '사진대지',
+        tel:         document.getElementById('q-receiver-tel').value.trim(),
+        addr:        document.getElementById('q-receiver-addr').value.trim(),
+        title:       `[사진대지] ${sheet.title || title}`,
+        note:        sheet.note || '',
+        account:     '',
+        vatType:     'free',
+        items:       [],
+        total:       0,
+        bizKey,
+        photoSheet:  sheet,
+        photoCount:  photos.length,
+        updatedAt:   Date.now(),
+        docType:     'photosheet'
+    };
+
+    quotes.push(payload);
+    quotes.forEach((q, i) => q.no = i + 1);
+    syncLocalData();
+    renderQuoteHistory();
+    isFormDirty = false;
+
+    showAlarmToast(`✅ 사진대지가 저장되었습니다! (${photos.length}장)`, 'success');
+    alert(`📷 사진대지 저장 완료!\n\n사진: ${photos.length}장\n제목: ${sheet.title || title}\n\n견적 이력 목록에서 🖼️사진 버튼으로 출력할 수 있습니다.`);
+}
+function renderQuoteHistory(){const tb=document.getElementById('quoteHistoryBody');if(!tb)return;tb.innerHTML='';const keyword=((document.getElementById('quote-history-search')||{}).value||'');const entries=getFilteredQuoteEntries(keyword);updateQuoteHistorySummary(keyword,entries.length);if(!quotes.length){tb.innerHTML='<tr><td colspan="8" style="color:#999;padding:18px;">저장된 견적 이력이 없습니다.</td></tr>';return;}if(!entries.length){tb.innerHTML='<tr><td colspan="8" style="color:#999;padding:18px;">검색 조건에 맞는 견적이 없습니다.</td></tr>';return;}entries.slice().reverse().forEach(({q,idx})=>{const bl=getBizLabel(q.bizKey||'biz1');const bc=getBizColor(q.bizKey||'biz1');const bb=getBizBg(q.bizKey||'biz1');const badge=`<span style="font-size:11px;font-weight:bold;color:${bc};background:${bb};padding:2px 7px;border-radius:10px;border:1px solid ${bc};">${bl}</span>`;const photoCount=(q.photoCount!==undefined?q.photoCount:((q.photoSheet&&q.photoSheet.photos)?q.photoSheet.photos.length:0))||0;const photoBadge=photoCount?`<span class="quote-photo-count-badge">📷 ${photoCount}장</span>`:'-';const docType=getQuoteHistoryDocType(q);const isPhotosheet=(q.docType==='photosheet');const kakaoLabel=isPhotosheet?'—':getQuoteHistoryKakaoLabel(docType);const printLabel=isPhotosheet?'🖼️사진대지출력':getQuoteHistoryPrintLabel(docType);const titleLabel=q.title||getQuoteHistoryDocTitle(docType);const row=tb.insertRow();if(editingQuoteIndex===idx)row.style.background='#fff8e1';row.innerHTML=`<td><b>${q.no}</b></td><td>${q.issueDate||'-'}</td><td><b>${q.receiver||'-'}</b>${q.tel?`<div style="font-size:11px;color:#888;">${escapeHtml(q.tel)}</div>`:''}</td><td style="text-align:left;">${isPhotosheet?`<span style="color:#0288d1;font-weight:bold;">📷 ${titleLabel}</span>`:titleLabel}</td><td style="font-weight:bold;color:var(--quote);">${isPhotosheet?`<span style="color:#0288d1;">${photoCount}장</span>`:(q.total||0).toLocaleString()+'원'}</td><td>${badge}</td><td>${photoBadge}</td><td style="display:flex;gap:3px;justify-content:center;flex-wrap:wrap;">${isPhotosheet?'':`<button class="btn-action" style="background:#fee500;color:#3c1e1e;font-weight:bold;" onclick="shareQuoteHistoryToKakao(${idx})">${kakaoLabel}</button>`}<button class="btn-action" style="background:${isPhotosheet?'#0288d1':'var(--quote)'};color:white;" onclick="${isPhotosheet?`printQuotePhotoSheetById(${idx})`:`printQuoteById(${idx})`}">${printLabel}</button><button class="btn-action" style="background:#1565c0;color:white;" onclick="printQuotePhotoSheetById(${idx})">🖼️사진</button>${isPhotosheet?'':`<button class="btn-action" style="background:var(--primary);color:white;" onclick="loadQuoteToForm(${idx})">📋불러오기</button>`}<button class="btn-action" style="color:red;background:white;border:1px solid red;" onclick="deleteQuote(${idx})">삭제</button></td>`;});}
 function shareQuoteHistoryToKakao(idx){const q=quotes[idx];if(!q)return;const docType=getQuoteHistoryDocType(q);const biz=(myBizInfo[q.bizKey||'biz1']&&myBizInfo[q.bizKey||'biz1'].bizName)?myBizInfo[q.bizKey||'biz1']:myBizInfo.biz1;shareDocToKakao(docType,{receiver:String(q.receiver||''),items:summarizeItemsForTax(q.items||[]),total:Number(q.total||0),date:String(q.issueDate||''),bizName:String(biz.bizName||''),bizTel:String(biz.tel||biz.mobile||''),account:String(q.account||''),phone:String(q.tel||'')});}
 function loadQuoteToForm(idx){const q=quotes[idx];if(!q)return;editingQuoteIndex=idx;updateQuoteSaveButtonState();selectQuoteBiz(q.bizKey||'biz1');document.getElementById('q-issue-date').value=q.issueDate||getKoreanDate();document.getElementById('q-valid').value=q.valid||'';document.getElementById('q-receiver').value=q.receiver||'';document.getElementById('q-receiver-tel').value=q.tel||'';document.getElementById('q-receiver-addr').value=q.addr||'';document.getElementById('q-title').value=q.title||'';document.getElementById('q-note').value=q.note||'';selectedQuoteCustomerId=(customers.find(c=>normalizeQuoteLookupText(c.name)===normalizeQuoteLookupText(q.receiver||'')&&(!normalizeQuoteLookupPhone(q.tel||'')||normalizeQuoteLookupPhone(c.phone)===normalizeQuoteLookupPhone(q.tel||'')))||{}).id||null;updateQuoteAccountOptions(q.account||'');document.querySelector(`input[name="q-vat-type"][value="${q.vatType||'included'}"]`).checked=true;document.getElementById('quoteItemBody').innerHTML='';quoteRowId=0;(q.items||[]).forEach(it=>addQuoteRow(it.name,it.spec,it.qty,it.price));loadQuotePhotoSheet(q.photoSheet||{});if(!document.getElementById('q-photo-date').value)document.getElementById('q-photo-date').value=q.issueDate||getKoreanDate();recalcQuote();renderQuoteUnpaidSection();syncQuotePhotoSummary();window.scrollTo({top:0,behavior:'smooth'});alert("견적이 불러와졌습니다. 수정 후 '수정 저장'을 누르면 기존 견적이 갱신됩니다.");}
 function deleteQuote(idx){if(!confirm("삭제?"))return;quotes.splice(idx,1);quotes.forEach((q,i)=>q.no=i+1);if(editingQuoteIndex===idx)editingQuoteIndex=null;else if(editingQuoteIndex!==null&&idx<editingQuoteIndex)editingQuoteIndex--;syncLocalData();renderQuoteHistory();updateQuoteSaveButtonState();}
