@@ -2462,20 +2462,28 @@ function shareDocToKakao(type, data) {
         params.set('seal', sealData);
     }
 
+    function cleanViewerText(value, maxLen) {
+        return String(value == null ? '' : value)
+            .replace(/\|\|/g, ' ')
+            .replace(/::/g, ' ')
+            .trim()
+            .slice(0, maxLen);
+    }
+
     function buildItemStr(items, compact = false) {
         return (items || [])
             .filter(it => String(it.name || '').trim())
             .map(it => compact
                 ? [
-                    encodeURIComponent(String(it.name || '').slice(0, 15)),
+                    cleanViewerText(it.name, 15),
                     '',
                     '',
                     '',
                     it.amt != null ? it.amt : 0
                 ].join('::')
                 : [
-                    encodeURIComponent(String(it.name || '').slice(0, 20)),
-                    encodeURIComponent(String(it.spec || '').slice(0, 10)),
+                    cleanViewerText(it.name, 20),
+                    cleanViewerText(it.spec, 10),
                     (it.qty   != null && it.qty   !== '') ? it.qty   : '',
                     (it.price != null && it.price !== '') ? it.price : '',
                     it.amt != null ? it.amt : 0
@@ -2495,7 +2503,7 @@ function shareDocToKakao(type, data) {
     } else if (data.items) {
         params.set(
             'items',
-            encodeURIComponent(String(data.items).slice(0, 30)) + '::' + (data.total || 0)
+            cleanViewerText(data.items, 30) + '::' + (data.total || 0)
         );
     }
 
@@ -7951,7 +7959,7 @@ function printRentalInvoiceCore(r, key, unpaidOnly) {
           <table class="q-party-table">
             <tr><th colspan="2" style="background:#fff3e0!important;-webkit-print-color-adjust:exact;">공 급 자</th></tr>
             <tr><th>등록번호</th><td><b>${escapeHtml(biz.bizNum || '')}</b></td></tr>
-            <tr><th>상호/대표자</th><td><div style="display:flex;align-items:center;gap:6px;"><span>${escapeHtml(biz.bizName || '')}</span><span>${escapeHtml(biz.repName || '')}</span>${sealHTML}</div></td></tr>
+            <tr><th>상호/대표자</th><td><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;line-height:1.25;font-size:11px;"><span style="font-weight:bold;word-break:keep-all;">${escapeHtml(biz.bizName || '')}</span><span style="font-weight:bold;word-break:keep-all;">${escapeHtml(biz.repName || '')}</span>${sealHTML}</div></td></tr>
             <tr><th>주소</th><td>${escapeHtml(biz.address || '')}</td></tr>
             <tr><th>업태/종목</th><td>${escapeHtml(biz.bizType || '')} / ${escapeHtml(biz.bizItem || '')}</td></tr>
             <tr><th>전화</th><td>${escapeHtml(biz.tel || biz.mobile || '')}</td></tr>
@@ -8073,7 +8081,7 @@ function printMultipleRentalInvoices(rentalList) {
             <table class="q-party-table">
               <tr><th colspan="2" style="background:#fff3e0!important;">공 급 자</th></tr>
               <tr><th>등록번호</th><td>${escapeHtml(biz.bizNum||'')}</td></tr>
-              <tr><th>상호/대표자</th><td><div style="display:flex;align-items:center;gap:5px;"><span>${escapeHtml(biz.bizName||'')}</span><span>${escapeHtml(biz.repName||'')}</span>${sealHTML}</div></td></tr>
+              <tr><th>상호/대표자</th><td><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;line-height:1.25;font-size:11px;"><span style="font-weight:bold;word-break:keep-all;">${escapeHtml(biz.bizName||'')}</span><span style="font-weight:bold;word-break:keep-all;">${escapeHtml(biz.repName||'')}</span>${sealHTML}</div></td></tr>
               <tr><th>전화</th><td>${escapeHtml(biz.tel||biz.mobile||'')}</td></tr>
             </table>
           </div>
@@ -8536,7 +8544,7 @@ function printCustomerUnpaidBatch(){
 
     const pop=window.open('','_blank')||window.open('','unpaidBatchInvoice',`width=980,height=1100,scrollbars=yes,resizable=yes`);if(!pop){alert('인쇄 창을 열 수 없습니다. 휴대폰에서는 팝업 허용 후 다시 시도해 주세요.');return;}
     pop.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=yes,viewport-fit=cover"><title>미수금 청구서</title>
-    <style>@page{size:A4 portrait;margin:12mm}*{box-sizing:border-box}body{font-family:'Malgun Gothic','Dotum',sans-serif;font-size:13px;margin:0;padding:13px;color:#111;background:#fff}.q-wrap{max-width:780px;margin:0 auto;}.q-section+.q-section{margin-top:18px;}.section-break{page-break-after:always;}.q-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:11px;border-bottom:3px solid #e65100;padding-bottom:7px;}.q-title-txt{font-size:32px;font-weight:900;letter-spacing:12px;color:#e65100;}.q-head-right{font-size:13px;}.q-parties{display:flex;gap:11px;margin-bottom:11px;font-size:12px;}.q-party-table{flex:1;border-collapse:collapse;}.q-party-table th,.q-party-table td{border:1px solid #ccc;padding:5px 7px;vertical-align:top;}.q-party-table th{background:#f9f9f9!important;-webkit-print-color-adjust:exact;}.q-total-banner{background:#e65100!important;-webkit-print-color-adjust:exact;color:#fff;display:flex;justify-content:space-between;align-items:center;padding:9px 16px;border-radius:6px;margin-bottom:9px;font-size:14px;font-weight:bold}.q-total-num{font-size:20px;font-weight:900;}.q-item-table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:9px;}.q-item-table th{background:#fff3e0!important;-webkit-print-color-adjust:exact;border:1px solid #ccc;padding:7px 4px;}.q-item-table td{border:1px solid #ddd;padding:6px 4px;text-align:center;height:26px;vertical-align:top;}.q-foot-row td{background:#fafafa!important;}.q-foot-total td{background:#fff3e0!important;border-top:2px solid #e65100!important;}.txt-left{text-align:left;padding-left:8px;}.txt-right{text-align:right;padding-right:8px;}.q-biz-inline{display:flex;align-items:center;justify-content:flex-start;gap:6px;flex-wrap:nowrap;}.q-biz-inline .q-biz-name,.q-biz-inline .q-biz-rep{font-weight:bold;}.biz-seal-inline{width:52px;max-height:52px;object-fit:contain;opacity:.9;flex-shrink:0;}.q-doc-footer{margin-top:10px;border:1px solid #f1c7a2;background:#fff8f3;border-radius:8px;padding:10px 12px;}.q-doc-footer-row{display:flex;gap:10px;align-items:flex-start;font-size:12px;line-height:1.6;}.q-doc-footer-row+.q-doc-footer-row{margin-top:6px;}.q-doc-footer-row .label{min-width:64px;font-weight:bold;color:#a14b00;}.q-doc-footer-row.account .value{font-size:14px;font-weight:bold;color:#b71c1c;}.q-row-sub{margin-top:4px;font-size:11px;color:#666;line-height:1.45;}html{-webkit-text-size-adjust:100%;print-color-adjust:exact;-webkit-print-color-adjust:exact;}img{max-width:100%;height:auto;}@media print{.section-break:last-child{page-break-after:auto;}}@media screen and (max-width:768px){@page{size:auto;margin:8mm;}body{padding:10px;font-size:12px;}.q-wrap{max-width:100%;width:100%;}.q-section+.q-section{margin-top:12px;}.q-head{flex-direction:column;align-items:flex-start;gap:6px;}.q-title-txt{font-size:24px;letter-spacing:6px;}.q-head-right{font-size:12px;}.q-parties{flex-direction:column;gap:8px;}.q-party-table{width:100%;table-layout:fixed;}.q-party-table th,.q-party-table td,.q-item-table th,.q-item-table td{font-size:11px;padding:6px 4px;word-break:break-word;}.q-total-banner{flex-direction:column;align-items:flex-start;gap:4px;padding:8px 10px;}.q-total-num{font-size:18px;}.q-item-table{table-layout:fixed;}.q-biz-inline{flex-wrap:wrap;gap:4px;}.biz-seal-inline{width:36px;max-height:36px;}.q-doc-footer-row{flex-direction:column;gap:2px;}.q-doc-footer-row .label{min-width:0;}}
+    <style>@page{size:A4 portrait;margin:12mm}*{box-sizing:border-box}body{font-family:'Malgun Gothic','Dotum',sans-serif;font-size:13px;margin:0;padding:13px;color:#111;background:#fff}.q-wrap{max-width:780px;margin:0 auto;}.q-section+.q-section{margin-top:18px;}.section-break{page-break-after:always;}.q-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:11px;border-bottom:3px solid #e65100;padding-bottom:7px;}.q-title-txt{font-size:32px;font-weight:900;letter-spacing:12px;color:#e65100;}.q-head-right{font-size:13px;}.q-parties{display:flex;gap:11px;margin-bottom:11px;font-size:12px;}.q-party-table{flex:1;border-collapse:collapse;}.q-party-table th,.q-party-table td{border:1px solid #ccc;padding:5px 7px;vertical-align:top;}.q-party-table th{background:#f9f9f9!important;-webkit-print-color-adjust:exact;}.q-total-banner{background:#e65100!important;-webkit-print-color-adjust:exact;color:#fff;display:flex;justify-content:space-between;align-items:center;padding:9px 16px;border-radius:6px;margin-bottom:9px;font-size:14px;font-weight:bold}.q-total-num{font-size:20px;font-weight:900;}.q-item-table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:9px;}.q-item-table th{background:#fff3e0!important;-webkit-print-color-adjust:exact;border:1px solid #ccc;padding:7px 4px;}.q-item-table td{border:1px solid #ddd;padding:6px 4px;text-align:center;height:26px;vertical-align:top;}.q-foot-row td{background:#fafafa!important;}.q-foot-total td{background:#fff3e0!important;border-top:2px solid #e65100!important;}.txt-left{text-align:left;padding-left:8px;}.txt-right{text-align:right;padding-right:8px;}.q-biz-inline{display:flex;align-items:center;justify-content:flex-start;gap:4px;flex-wrap:wrap;min-width:0;line-height:1.25;}.q-biz-inline .q-biz-name{font-weight:bold;font-size:11px;word-break:keep-all;}.q-biz-inline .q-biz-rep{font-weight:bold;font-size:10px;word-break:keep-all;}.biz-seal-inline{width:52px;max-height:52px;object-fit:contain;opacity:.9;flex-shrink:0;}.q-doc-footer{margin-top:10px;border:1px solid #f1c7a2;background:#fff8f3;border-radius:8px;padding:10px 12px;}.q-doc-footer-row{display:flex;gap:10px;align-items:flex-start;font-size:12px;line-height:1.6;}.q-doc-footer-row+.q-doc-footer-row{margin-top:6px;}.q-doc-footer-row .label{min-width:64px;font-weight:bold;color:#a14b00;}.q-doc-footer-row.account .value{font-size:14px;font-weight:bold;color:#b71c1c;}.q-row-sub{margin-top:4px;font-size:11px;color:#666;line-height:1.45;}html{-webkit-text-size-adjust:100%;print-color-adjust:exact;-webkit-print-color-adjust:exact;}img{max-width:100%;height:auto;}@media print{.section-break:last-child{page-break-after:auto;}}@media screen and (max-width:768px){@page{size:auto;margin:8mm;}body{padding:10px;font-size:12px;}.q-wrap{max-width:100%;width:100%;}.q-section+.q-section{margin-top:12px;}.q-head{flex-direction:column;align-items:flex-start;gap:6px;}.q-title-txt{font-size:24px;letter-spacing:6px;}.q-head-right{font-size:12px;}.q-parties{flex-direction:column;gap:8px;}.q-party-table{width:100%;table-layout:fixed;}.q-party-table th,.q-party-table td,.q-item-table th,.q-item-table td{font-size:11px;padding:6px 4px;word-break:break-word;}.q-total-banner{flex-direction:column;align-items:flex-start;gap:4px;padding:8px 10px;}.q-total-num{font-size:18px;}.q-item-table{table-layout:fixed;}.q-biz-inline{flex-wrap:wrap;gap:4px;}.biz-seal-inline{width:36px;max-height:36px;}.q-doc-footer-row{flex-direction:column;gap:2px;}.q-doc-footer-row .label{min-width:0;}}
         .role-action-btn{display:none;align-items:center;gap:4px;}
         .access-modal{display:none;position:fixed;inset:0;background:rgba(15,23,42,.52);z-index:100000;align-items:center;justify-content:center;padding:16px;}
         .access-modal-card{width:min(760px,96vw);max-height:92vh;overflow:auto;background:#fff;border-radius:18px;box-shadow:0 18px 55px rgba(15,23,42,.28);padding:22px;}
@@ -9551,6 +9559,10 @@ body{font-family:'Malgun Gothic','Dotum',sans-serif;font-size:13px;margin:0;padd
     width:auto;
     min-height:28px;
     line-height:1.45;
+    overflow-wrap:anywhere;
+}
+.q-supplier-table td{
+    overflow:visible;
 }
 /* 빈 셀도 높이 유지 */
 .q-party-table td:empty::after,
@@ -9610,8 +9622,9 @@ body{font-family:'Malgun Gothic','Dotum',sans-serif;font-size:13px;margin:0;padd
 .txt-right{text-align:right!important;padding-right:8px!important;}
 
 /* ── 인장 ── */
-.q-biz-inline{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;}
-.q-biz-name,.q-biz-rep{font-weight:bold;}
+.q-biz-inline{display:flex;align-items:center;gap:4px;flex-wrap:wrap;min-width:0;line-height:1.25;}
+.q-biz-name{font-weight:bold;font-size:11px;word-break:keep-all;}
+.q-biz-rep{font-weight:bold;font-size:10px;word-break:keep-all;}
 .biz-seal-inline{width:46px;max-height:46px;object-fit:contain;opacity:.9;flex-shrink:0;}
 
 /* ── 비고/계좌 ── */
