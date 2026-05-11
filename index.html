@@ -2231,53 +2231,18 @@ function initKakaoSDK() {
 })();
 
 
-// ── 견적서 카카오 공유 함수 ──
+// ── 견적서 카카오 공유 함수 (GitHub Pages 의존성 완전 제거) ──
+// ★ 외부 뷰어 호출 차단 - 이미지 방식으로 리다이렉트
 function shareQuoteKakao(quoteUrl, receiverName, totalAmt) {
-    const key = loadKakaoAppKey();
-
-    if (!window.Kakao) {
-        alert('카카오 SDK가 로드되지 않았습니다. 페이지를 새로고침해 주세요.');
-        return false;
+    // ★ GitHub Pages URL을 절대 호출하지 않음
+    // 호출 측에서 docType/data를 알 수 없으므로 안내 토스트만 표시
+    if (typeof showAlarmToast === 'function') {
+        showAlarmToast('⚠️ 이 경로는 더 이상 지원되지 않습니다. 견적/영수증 화면에서 🖼️ 카카오 버튼을 사용해 주세요.', 'warning');
+    } else {
+        alert('이 경로는 더 이상 지원되지 않습니다. 견적/영수증 화면에서 🖼️ 카카오 버튼을 사용해 주세요.');
     }
-
-    if (!key) {
-        alert('카카오 JavaScript 앱키를 먼저 설정해 주세요.');
-        return false;
-    }
-
-    try {
-        if (!Kakao.isInitialized()) {
-            Kakao.init(key);
-        }
-
-        Kakao.Share.sendDefault({
-            objectType: 'feed',
-            content: {
-                title: '📋 견적서 확인 요청',
-                description: (receiverName || '고객') + ' 귀하 · 금액: ₩' + Number(totalAmt || 0).toLocaleString(),
-                imageUrl: 'https://miraecom1-netizen.github.io/mirae/og-image.png',
-                link: {
-                    mobileWebUrl: quoteUrl,
-                    webUrl: quoteUrl,
-                },
-            },
-            buttons: [
-                {
-                    title: '📄 견적서 확인하기',
-                    link: {
-                        mobileWebUrl: quoteUrl,
-                        webUrl: quoteUrl,
-                    },
-                },
-            ],
-        });
-
-        return true;
-    } catch (e) {
-        console.warn('[카카오 공유] shareQuoteKakao 실패:', e);
-        alert('카카오톡 공유에 실패했습니다. 앱키와 도메인 설정을 확인해 주세요.');
-        return false;
-    }
+    console.warn('[shareQuoteKakao] 호출 차단됨 - GitHub Pages 의존 제거. shareDocAsImageToKakao를 직접 호출하세요.');
+    return false;
 }
 
 // ── 앱키 상태 UI 업데이트 ──
@@ -2384,58 +2349,78 @@ function shareDocToKakao(docType, data) {
  */
 async function renderDocToBlob(htmlContent) {
     return new Promise((resolve, reject) => {
-        const container = document.createElement('div');
-        container.style.cssText = [
+
+        // ── 오프스크린 iframe 생성 ──
+        const iframe = document.createElement('iframe');
+        iframe.style.cssText = [
             'position:fixed',
             'top:-99999px',
             'left:-99999px',
-            'width:794px',
-            'min-height:100px',
-            'background:white',
-            'font-family:Malgun Gothic,Dotum,sans-serif',
-            'z-index:-9999',
-            'overflow:hidden',
-            'box-sizing:border-box'
+            'width:900px',
+            'height:1200px',
+            'border:none',
+            'visibility:hidden',
+            'z-index:-9999'
         ].join(';');
+        document.body.appendChild(iframe);
 
-        // 스크립트 제거, 스타일/이미지는 유지
-        container.innerHTML = htmlContent
-            .replace(/<script[\s\S]*?<\/script>/gi, '')
-            .replace(/onclick="[^"]*"/gi, '')
-            .replace(/onclick='[^']*'/gi, '');
+        // iframe에 HTML 주입
+        const iDoc = iframe.contentDocument || iframe.contentWindow.document;
+        iDoc.open();
+        iDoc.write(htmlContent);
+        iDoc.close();
 
-        document.body.appendChild(container);
-
-        // 렌더링 완료 대기 후 캡처
-        setTimeout(async () => {
+        // 렌더링 완료 대기 (이미지·폰트 로드 포함)
+        let captured = false;
+        const doCapture = async () => {
+            if (captured) return;
+            captured = true;
             try {
-                const canvas = await html2canvas(container, {
-                    scale:           1.5,
+                // 실제 콘텐츠 높이 측정
+                const body = iDoc.body;
+                const actualH = Math.max(body.scrollHeight, body.offsetHeight, 400);
+
+                iframe.style.height = actualH + 50 + 'px';
+
+                // html2canvas로 iframe 내부 body 캡처
+                const canvas = await html2canvas(body, {
+                    scale:           2,
                     useCORS:         true,
-                    allowTaint:      true,   // base64 도장 이미지 허용
+                    allowTaint:      true,
                     backgroundColor: '#ffffff',
                     logging:         false,
-                    windowWidth:     794,
-                    width:           794,
-                    imageTimeout:    10000,
-                    removeContainer: true
+                    windowWidth:     900,
+                    width:           900,
+                    height:          actualH,
+                    imageTimeout:    15000,
+                    scrollX:         0,
+                    scrollY:         0
                 });
 
+                if (document.body.contains(iframe)) {
+                    document.body.removeChild(iframe);
+                }
+
                 canvas.toBlob((blob) => {
-                    if (document.body.contains(container)) {
-                        document.body.removeChild(container);
-                    }
                     if (blob) resolve(blob);
                     else reject(new Error('Canvas → Blob 변환 실패'));
-                }, 'image/jpeg', 0.82);
+                }, 'image/jpeg', 0.88);
 
             } catch (err) {
-                if (document.body.contains(container)) {
-                    document.body.removeChild(container);
+                if (document.body.contains(iframe)) {
+                    document.body.removeChild(iframe);
                 }
                 reject(err);
             }
-        }, 350);
+        };
+
+        // load 이벤트 + 추가 대기
+        iframe.addEventListener('load', () => {
+            setTimeout(doCapture, 600);
+        });
+
+        // load 이벤트가 안 오는 경우 fallback
+        setTimeout(doCapture, 1200);
     });
 }
 
@@ -2506,10 +2491,11 @@ function removeKakaoProgressToast() {
  *   - data 구조: shareDocToKakao에서 쓰는 것과 동일
  */
 function buildCaptureHtml(docType, data) {
-    // 사업자 정보
+    // ── 사업자 정보 ──
     const bizKey = data.bizKey || 'biz1';
     const biz = (myBizInfo[bizKey] && myBizInfo[bizKey].bizName)
-        ? myBizInfo[bizKey] : (myBizInfo.biz1 || {});
+        ? myBizInfo[bizKey]
+        : (myBizInfo.biz1 || {});
 
     const docTitleMap = {
         quote:     '견 &nbsp; 적 &nbsp; 서',
@@ -2517,258 +2503,303 @@ function buildCaptureHtml(docType, data) {
         statement: '거 래 명 세 서',
         receipt:   '영 &nbsp; 수 &nbsp; 증'
     };
-    const accentColor = docType === 'receipt' ? '#34a853'
-                      : docType === 'invoice' ? '#e65100'
-                      : '#e65100';
 
-    // 품목 행
-    const items = (data.itemsArr || []).filter(it => String(it.name||'').trim());
+    const accentColor = (docType === 'receipt') ? '#34a853' : '#e65100';
+
+    const sealHTML = biz.seal
+        ? `<img src="${biz.seal}" style="width:46px;height:46px;object-fit:contain;opacity:.9;vertical-align:middle;">`
+        : '';
+
+    // ── 금액 계산 ──
+    const total   = Number(data.total || 0);
+    const vatType = data.vatType || 'included';
+    let supply = total, tax = 0;
+    if (vatType === 'included')  { supply = Math.round(total / 1.1); tax = total - supply; }
+    else if (vatType === 'excluded') { tax = Math.round(total * 0.1); supply = total; }
+
+    // ── 품목 행 ──
+    const items  = (data.itemsArr || []).filter(it => String(it.name || '').trim());
+    const minRow = Math.max(items.length + 2, 8);
     let rowsHTML = '';
 
     if (items.length) {
         items.forEach((it, i) => {
-            const qty = Number(it.qty) || 1;
+            const qty   = Number(it.qty)   || 1;
             const price = Number(it.price) || 0;
-            const amt = Number(it.amt) || (qty * price);
-            rowsHTML += `
-            <tr>
-                <td style="text-align:center;border:1px solid #ddd;padding:6px 4px;">${i+1}</td>
-                <td style="text-align:left;border:1px solid #ddd;padding:6px 8px;word-break:break-all;">${escapeHtml(it.name||'')}</td>
-                <td style="text-align:center;border:1px solid #ddd;padding:6px 4px;">${qty.toLocaleString()}</td>
-                <td style="text-align:right;border:1px solid #ddd;padding:6px 8px;">${price?price.toLocaleString():''}</td>
-                <td style="text-align:right;border:1px solid #ddd;padding:6px 8px;font-weight:bold;">${amt.toLocaleString()}</td>
+            const amt   = Number(it.amt)   || qty * price;
+            rowsHTML += `<tr>
+                <td>${i + 1}</td>
+                <td class="tl">${escapeHtml(it.name || '')}</td>
+                <td>${escapeHtml(it.spec || '')}</td>
+                <td class="tr">${qty.toLocaleString()}</td>
+                <td class="tr">${price ? price.toLocaleString() : ''}</td>
+                <td class="tr"><b>${amt.toLocaleString()}</b></td>
             </tr>`;
         });
     } else {
-        // 품목 없으면 서비스 내용으로 단일 행
-        rowsHTML = `
-        <tr>
-            <td style="text-align:center;border:1px solid #ddd;padding:6px 4px;">1</td>
-            <td style="text-align:left;border:1px solid #ddd;padding:6px 8px;">${escapeHtml(data.title||data.items||'서비스')}</td>
-            <td style="text-align:center;border:1px solid #ddd;padding:6px 4px;">1</td>
-            <td style="text-align:right;border:1px solid #ddd;padding:6px 8px;">${Number(data.total||0).toLocaleString()}</td>
-            <td style="text-align:right;border:1px solid #ddd;padding:6px 8px;font-weight:bold;">${Number(data.total||0).toLocaleString()}</td>
+        rowsHTML = `<tr>
+            <td>1</td>
+            <td class="tl">${escapeHtml(data.title || '서비스')}</td>
+            <td></td>
+            <td class="tr">1</td>
+            <td class="tr">${total.toLocaleString()}</td>
+            <td class="tr"><b>${total.toLocaleString()}</b></td>
         </tr>`;
     }
-
-    // 빈 행으로 최소 6행 채우기
-    const minRows = 6;
-    const existRows = items.length || 1;
-    for (let i = existRows; i < minRows; i++) {
-        rowsHTML += `<tr>
-            <td style="border:1px solid #ddd;height:26px;"></td>
-            <td style="border:1px solid #ddd;"></td>
-            <td style="border:1px solid #ddd;"></td>
-            <td style="border:1px solid #ddd;"></td>
-            <td style="border:1px solid #ddd;"></td>
-        </tr>`;
+    for (let i = (items.length || 1); i < minRow; i++) {
+        rowsHTML += `<tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
     }
 
-    // 금액 계산
-    const total = Number(data.total || 0);
-    const vatType = data.vatType || 'included';
-    let supply = total, tax = 0;
-    if (vatType === 'included')  { supply = Math.round(total/1.1); tax = total - supply; }
-    else if (vatType === 'excluded') { tax = Math.round(total*0.1); supply = total; }
-
-    // 도장 이미지 (base64 직접 삽입)
-    const sealHTML = biz.seal
-        ? `<img src="${biz.seal}" style="width:44px;height:44px;
-           object-fit:contain;opacity:.88;flex-shrink:0;">`
-        : '';
-
-    // 계좌
-    const account = data.account || data.bizTel ? '' : '';
-    const accountSection = (data.account && data.account.trim())
-        ? `<div style="border:1.5px solid #1a73e8;border-radius:8px;
-               padding:9px 14px;background:#f0f6ff;margin-top:10px;">
-            <div style="font-weight:bold;color:#1a73e8;font-size:11px;
-                        margin-bottom:3px;">💳 입금 계좌</div>
-            <div style="font-size:13px;font-weight:bold;color:#b71c1c;">
-                ${escapeHtml(data.account)}</div>
+    // ── 계좌 ──
+    const acctHTML = (data.account || '').trim()
+        ? `<div style="margin-top:10px;padding:9px 14px;border:2px solid #1565c0;
+                       border-radius:8px;background:#f0f6ff;">
+               <div style="font-size:11px;font-weight:bold;color:#1565c0;margin-bottom:3px;">💳 입금 계좌</div>
+               <div style="font-size:14px;font-weight:bold;color:#b71c1c;">${escapeHtml(data.account)}</div>
            </div>`
         : '';
 
-    return `
-<div style="font-family:'Malgun Gothic',Dotum,sans-serif;
-            font-size:13px;padding:22px;background:white;
-            width:750px;color:#000;box-sizing:border-box;">
+    // ── 비고 ──
+    const noteHTML = (data.note || '').trim()
+        ? `<div style="margin-top:8px;padding:8px 12px;border:1px solid #e0e0e0;
+                       border-radius:6px;background:#fafafa;font-size:12px;color:#555;">
+               <b>비고:</b> ${escapeHtml(data.note)}
+           </div>`
+        : '';
+
+    // ══════════════════════════════════════════════════════
+    // ★ printQuote 와 100% 동일한 스타일/구조 사용
+    //   — 인라인 스타일만, flexbox 없음, table 기반 2단
+    // ══════════════════════════════════════════════════════
+    return `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<style>
+@page { size:A4 portrait; margin:12mm; }
+* { box-sizing:border-box; }
+body {
+    font-family:'Malgun Gothic','Dotum',sans-serif;
+    font-size:13px; color:#111;
+    background:#fff; margin:0; padding:16px 20px;
+    width:900px;
+}
+.q-wrap { max-width:860px; margin:0 auto; }
+
+/* ── 헤더 ── */
+.q-head {
+    width:100%; border-collapse:collapse;
+    border-bottom:3px solid ${accentColor};
+    margin-bottom:11px;
+}
+.q-head td { padding-bottom:7px; vertical-align:bottom; }
+.q-title-txt {
+    font-size:30px; font-weight:900;
+    letter-spacing:10px; color:${accentColor};
+}
+.q-head-right { text-align:right; font-size:12px; color:#555; white-space:nowrap; }
+
+/* ── 2단 당사자 테이블 ── */
+.q-parties {
+    width:100%; border-collapse:separate; border-spacing:8px 0;
+    margin-bottom:11px; table-layout:fixed;
+}
+.q-parties > tbody > tr > td { padding:0; vertical-align:top; width:50%; }
+.q-party-table {
+    width:100%; border-collapse:collapse;
+    font-size:12px; table-layout:fixed;
+}
+.q-party-table th, .q-party-table td {
+    border:1px solid #bbb; padding:6px 7px;
+    vertical-align:middle; overflow:hidden; word-break:break-all;
+}
+.q-party-table th {
+    background:#f5f5f5; width:68px; min-width:68px;
+    font-weight:bold; font-size:11px; text-align:center; white-space:nowrap;
+}
+.q-party-table td { font-size:12px; }
+.party-hd {
+    text-align:center; font-size:13px; font-weight:900;
+    letter-spacing:4px; padding:7px 5px;
+    width:auto !important; min-width:0 !important;
+}
+.party-hd-r { background:#e3f2fd; color:#0d47a1; }
+.party-hd-s { background:#fff3e0; color:#bf360c; }
+
+/* ── 합계 배너 ── */
+.q-total-banner {
+    width:100%; border-collapse:collapse; margin-bottom:9px;
+}
+.q-total-banner td {
+    background:${accentColor};
+    color:#fff; padding:10px 16px; border-radius:6px;
+    font-size:14px; font-weight:bold;
+}
+.q-total-inner {
+    width:100%; border-collapse:collapse;
+}
+.q-total-inner td { color:#fff; background:transparent; }
+.q-total-num { text-align:right; font-size:22px; font-weight:900; white-space:nowrap; }
+
+/* ── 품목 테이블 ── */
+.q-item-table {
+    width:100%; border-collapse:collapse;
+    font-size:13px; margin-bottom:9px; table-layout:fixed;
+}
+.q-item-table th {
+    background:#fff3e0; border:1px solid #ccc;
+    padding:7px 4px; text-align:center;
+}
+.q-item-table td { border:1px solid #ddd; padding:6px 4px; text-align:center; height:26px; }
+.tl { text-align:left !important; padding-left:8px !important; }
+.tr { text-align:right !important; padding-right:8px !important; }
+.q-foot-row td { background:#fafafa; }
+.q-foot-total td {
+    background:#fff3e0; border-top:2px solid ${accentColor} !important; font-weight:bold;
+}
+
+/* ── 도장 인라인 ── */
+.biz-inline { display:inline; }
+</style>
+</head>
+<body>
+<div class="q-wrap">
 
     <!-- 헤더 -->
-    <div style="display:flex;justify-content:space-between;
-                align-items:flex-end;border-bottom:3px solid ${accentColor};
-                padding-bottom:8px;margin-bottom:12px;">
-        <div style="font-size:24px;font-weight:900;
-                    letter-spacing:8px;color:${accentColor};">
-            ${docTitleMap[docType] || '문 서'}
-        </div>
-        <div style="font-size:12px;color:#666;">
-            작성일자: <b>${escapeHtml(data.date||data.issueDate||'')}</b>
-        </div>
-    </div>
+    <table class="q-head" style="width:100%;">
+        <tr>
+            <td class="q-title-txt">${docTitleMap[docType] || '문 서'}</td>
+            <td class="q-head-right">작성일자 : <b>${escapeHtml(data.date || data.issueDate || '')}</b></td>
+        </tr>
+    </table>
 
-    <!-- 수신/공급자 2단 테이블 -->
-    <div style="display:flex;gap:8px;margin-bottom:12px;">
+    <!-- 2단: 공급받는자 + 공급자 -->
+    <table class="q-parties">
+        <tbody>
+            <tr>
+                <!-- 공급받는자 -->
+                <td>
+                    <table class="q-party-table">
+                        <tr>
+                            <th colspan="2" class="party-hd party-hd-r">공 급 받 는 자</th>
+                        </tr>
+                        <tr>
+                            <th>상호/성명</th>
+                            <td><b>${escapeHtml(data.receiver || data.name || '')}</b> 귀하</td>
+                        </tr>
+                        <tr>
+                            <th>연락처</th>
+                            <td>${escapeHtml(data.phone || '')}</td>
+                        </tr>
+                        <tr>
+                            <th>주소</th>
+                            <td style="font-size:11px;">${escapeHtml(data.receiverAddr || data.addr || '')}</td>
+                        </tr>
+                        <tr>
+                            <th>건&nbsp;&nbsp;&nbsp;명</th>
+                            <td>${escapeHtml(data.title || '')}</td>
+                        </tr>
+                        <tr>
+                            <th>&nbsp;</th>
+                            <td>&nbsp;</td>
+                        </tr>
+                    </table>
+                </td>
 
-        <!-- 공급받는자 -->
-        <table style="flex:1;border-collapse:collapse;
-                      font-size:12px;width:49%;">
-            <tr>
-                <th colspan="2" style="background:#e3f2fd;padding:6px 5px;
-                    font-size:12px;border:1px solid #bbb;
-                    letter-spacing:3px;text-align:center;">
-                    공 급 받 는 자
-                </th>
-            </tr>
-            <tr>
-                <th style="background:#f5f5f5;width:60px;padding:5px 7px;
-                    border:1px solid #ccc;white-space:nowrap;font-weight:bold;">
-                    상호/성명
-                </th>
-                <td style="padding:5px 7px;border:1px solid #ccc;font-weight:bold;">
-                    ${escapeHtml(data.receiver||data.name||'')} 귀하
+                <!-- 공급자 -->
+                <td>
+                    <table class="q-party-table">
+                        <tr>
+                            <th colspan="2" class="party-hd party-hd-s">공 급 자</th>
+                        </tr>
+                        <tr>
+                            <th>등록번호</th>
+                            <td><b>${escapeHtml(data.bizNum || biz.bizNum || '')}</b></td>
+                        </tr>
+                        <tr>
+                            <th>상호/대표자</th>
+                            <td>
+                                <b>${escapeHtml(data.bizName || biz.bizName || '')}</b>
+                                &nbsp;${escapeHtml(data.repName || biz.repName || '')}
+                                ${sealHTML}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>주소</th>
+                            <td style="font-size:11px;">${escapeHtml(data.bizAddress || biz.address || '')}</td>
+                        </tr>
+                        <tr>
+                            <th>업태/종목</th>
+                            <td style="font-size:11px;">
+                                ${escapeHtml(data.bizType || biz.bizType || '')} /
+                                ${escapeHtml(data.bizItem || biz.bizItem || '')}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>전화</th>
+                            <td>${escapeHtml(data.bizTel || biz.tel || biz.mobile || '')}</td>
+                        </tr>
+                    </table>
                 </td>
             </tr>
-            <tr>
-                <th style="background:#f5f5f5;padding:5px 7px;
-                    border:1px solid #ccc;font-weight:bold;">연락처</th>
-                <td style="padding:5px 7px;border:1px solid #ccc;">
-                    ${escapeHtml(data.phone||'')}
-                </td>
-            </tr>
-            <tr>
-                <th style="background:#f5f5f5;padding:5px 7px;
-                    border:1px solid #ccc;font-weight:bold;">주소</th>
-                <td style="padding:5px 7px;border:1px solid #ccc;
-                    font-size:11px;word-break:break-all;">
-                    ${escapeHtml(data.receiverAddr||data.addr||'')}
-                </td>
-            </tr>
-        </table>
-
-        <!-- 공급자 -->
-        <table style="flex:1;border-collapse:collapse;
-                      font-size:12px;width:49%;position:relative;">
-            <tr>
-                <th colspan="2" style="background:#fff3e0;padding:6px 5px;
-                    font-size:12px;border:1px solid #bbb;
-                    letter-spacing:3px;text-align:center;">
-                    공 급 자
-                </th>
-            </tr>
-            <tr>
-                <th style="background:#f5f5f5;width:60px;padding:5px 7px;
-                    border:1px solid #ccc;white-space:nowrap;font-weight:bold;">
-                    등록번호
-                </th>
-                <td style="padding:5px 7px;border:1px solid #ccc;font-weight:bold;">
-                    ${escapeHtml(data.bizNum||biz.bizNum||'')}
-                </td>
-            </tr>
-            <tr>
-                <th style="background:#f5f5f5;padding:5px 7px;
-                    border:1px solid #ccc;font-weight:bold;">상호/대표</th>
-                <td style="padding:5px 7px;border:1px solid #ccc;">
-                    <div style="display:flex;align-items:center;
-                                gap:5px;flex-wrap:nowrap;">
-                        <span style="font-weight:bold;">
-                            ${escapeHtml(data.bizName||biz.bizName||'')}
-                        </span>
-                        <span>${escapeHtml(data.repName||biz.repName||'')}</span>
-                        ${sealHTML}
-                    </div>
-                </td>
-            </tr>
-            <tr>
-                <th style="background:#f5f5f5;padding:5px 7px;
-                    border:1px solid #ccc;font-weight:bold;">전화</th>
-                <td style="padding:5px 7px;border:1px solid #ccc;">
-                    ${escapeHtml(data.bizTel||biz.tel||biz.mobile||'')}
-                </td>
-            </tr>
-            <tr>
-                <th style="background:#f5f5f5;padding:5px 7px;
-                    border:1px solid #ccc;font-weight:bold;">업태/종목</th>
-                <td style="padding:5px 7px;border:1px solid #ccc;font-size:11px;">
-                    ${escapeHtml(data.bizType||biz.bizType||'')} /
-                    ${escapeHtml(data.bizItem||biz.bizItem||'')}
-                </td>
-            </tr>
-        </table>
-    </div>
+        </tbody>
+    </table>
 
     <!-- 합계 배너 -->
-    <div style="background:${accentColor};color:white;
-                display:flex;justify-content:space-between;
-                align-items:center;padding:10px 16px;
-                border-radius:6px;margin-bottom:10px;">
-        <span style="font-size:14px;font-weight:bold;">합계금액</span>
-        <span style="font-size:20px;font-weight:900;">
-            ₩ ${total.toLocaleString()}
-        </span>
-    </div>
+    <table class="q-total-banner">
+        <tr>
+            <td>
+                <table class="q-total-inner">
+                    <tr>
+                        <td>합계금액
+                            (${vatType === 'included' ? '부가세포함' : vatType === 'excluded' ? '부가세별도' : '부가세없음'})
+                        </td>
+                        <td class="q-total-num">₩ ${total.toLocaleString()}</td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
 
     <!-- 품목 테이블 -->
-    <table style="width:100%;border-collapse:collapse;
-                  font-size:12px;margin-bottom:10px;">
+    <table class="q-item-table">
+        <colgroup>
+            <col style="width:6%"><col style="width:36%"><col style="width:12%">
+            <col style="width:10%"><col style="width:18%"><col style="width:18%">
+        </colgroup>
         <thead>
-            <tr style="background:#fff3e0;">
-                <th style="border:1px solid #ccc;padding:7px 4px;
-                    width:6%;text-align:center;">No.</th>
-                <th style="border:1px solid #ccc;padding:7px 8px;
-                    width:40%;text-align:left;">품명 / 내용</th>
-                <th style="border:1px solid #ccc;padding:7px 4px;
-                    width:10%;text-align:center;">수량</th>
-                <th style="border:1px solid #ccc;padding:7px 8px;
-                    width:20%;text-align:right;">단가</th>
-                <th style="border:1px solid #ccc;padding:7px 8px;
-                    width:24%;text-align:right;">금액</th>
+            <tr>
+                <th>No.</th>
+                <th class="tl">품명/내용</th>
+                <th>규격</th>
+                <th>수량</th>
+                <th class="tr">단가</th>
+                <th class="tr">금액</th>
             </tr>
         </thead>
         <tbody>${rowsHTML}</tbody>
         <tfoot>
-            <tr style="background:#fafafa;">
-                <td colspan="3" style="border:1px solid #ccc;padding:6px 8px;
-                    text-align:right;font-weight:bold;">공급가액</td>
-                <td colspan="2" style="border:1px solid #ccc;padding:6px 8px;
-                    text-align:right;font-weight:bold;">
-                    ${supply.toLocaleString()}원
-                </td>
+            <tr class="q-foot-row">
+                <td colspan="4" class="tr" style="font-weight:bold;">공급가액</td>
+                <td colspan="2" class="tr" style="font-weight:bold;">${supply.toLocaleString()}원</td>
             </tr>
-            <tr style="background:#fafafa;">
-                <td colspan="3" style="border:1px solid #ccc;padding:6px 8px;
-                    text-align:right;font-weight:bold;">부가세</td>
-                <td colspan="2" style="border:1px solid #ccc;padding:6px 8px;
-                    text-align:right;font-weight:bold;">
-                    ${tax.toLocaleString()}원
-                </td>
+            <tr class="q-foot-row">
+                <td colspan="4" class="tr" style="font-weight:bold;">부가세(10%)</td>
+                <td colspan="2" class="tr" style="font-weight:bold;">${tax.toLocaleString()}원</td>
             </tr>
-            <tr>
-                <td colspan="3" style="border:2px solid ${accentColor};
-                    padding:7px 8px;text-align:right;
-                    font-weight:bold;font-size:13px;
-                    background:#fff3e0;">합계</td>
-                <td colspan="2" style="border:2px solid ${accentColor};
-                    padding:7px 8px;text-align:right;
-                    font-weight:bold;font-size:15px;
-                    background:#fff3e0;">
-                    ₩ ${total.toLocaleString()}
-                </td>
+            <tr class="q-foot-total">
+                <td colspan="4" class="tr" style="font-size:14px;">합계</td>
+                <td colspan="2" class="tr" style="font-size:16px;">₩ ${total.toLocaleString()}</td>
             </tr>
         </tfoot>
     </table>
 
-    <!-- 비고 -->
-    ${data.note ? `
-    <div style="border:1px solid #e0e0e0;border-radius:6px;
-                padding:8px 12px;background:#fafafa;
-                font-size:11px;color:#555;margin-bottom:8px;">
-        <b>비고:</b> ${escapeHtml(data.note)}
-    </div>` : ''}
+    ${noteHTML}
+    ${acctHTML}
 
-    <!-- 계좌 -->
-    ${accountSection}
-</div>`;
+</div>
+</body>
+</html>`;
 }
 
 /**
@@ -2779,115 +2810,103 @@ function buildCaptureHtml(docType, data) {
  */
 async function shareDocAsImageToKakao(docType, data) {
 
-    // ── 앱키 확인 ──
     const appKey = loadKakaoAppKey();
     if (!appKey) {
-        showAlarmToast('⚠️ 카카오 앱키 미설정 → 기존 방식으로 전송합니다', 'warning');
-        shareDocToKakao(docType, data);
+        showAlarmToast('⚠️ 카카오 앱키 미설정 → 클립보드 방식으로 전환합니다', 'warning');
+        _fallbackKakaoShare(docType, data);
         return;
     }
 
-    // ── SDK 초기화 ──
     if (!initKakaoSDK()) {
-        showAlarmToast('⚠️ SDK 초기화 실패 → 기존 방식으로 전송합니다', 'warning');
-        shareDocToKakao(docType, data);
+        showAlarmToast('⚠️ SDK 초기화 실패 → 클립보드 방식으로 전환합니다', 'warning');
+        _fallbackKakaoShare(docType, data);
         return;
     }
 
-    // ── html2canvas 라이브러리 확인 ──
     if (typeof html2canvas === 'undefined') {
-        showAlarmToast('⚠️ 이미지 라이브러리 미로드 → 기존 방식으로 전송합니다', 'warning');
-        shareDocToKakao(docType, data);
+        showAlarmToast('⚠️ 이미지 라이브러리 미로드 → 클립보드 방식으로 전환합니다', 'warning');
+        _fallbackKakaoShare(docType, data);
         return;
     }
 
-    // ── 진행 상태 표시 ──
-    showKakaoProgressToast('📄 문서 이미지 생성 중...');
+    showKakaoProgressToast('📄 견적서 이미지 생성 중...');
 
     try {
-        // STEP 1: 캡처용 HTML 생성
+        // ① 캡처용 HTML 생성 (실제 인쇄창과 동일한 구조)
         const captureHtml = buildCaptureHtml(docType, data);
 
-        // STEP 2: HTML → Blob 변환
-        updateKakaoProgressToast('🖼️ 이미지 변환 중...');
+        // ② HTML → Blob (iframe 방식)
+        updateKakaoProgressToast('🖼️ 이미지 변환 중... (잠시 기다려주세요)');
         const blob = await renderDocToBlob(captureHtml);
 
-        // STEP 3: 카카오 서버 업로드
+        // ③ 카카오 서버 업로드
         updateKakaoProgressToast('☁️ 카카오 서버 업로드 중...');
         const imageUrl = await uploadBlobToKakao(blob);
 
-        // STEP 4: 카카오 공유 실행
         removeKakaoProgressToast();
 
+        // ④ 카카오 공유
         const docTitles = {
             quote:     '📋 견적서',
             invoice:   '💵 청구서',
             statement: '📄 거래명세서',
             receipt:   '🧾 영수증'
         };
-
         const receiverName = data.receiver || data.name || '고객';
-        const shareTitle = `${docTitles[docType] || '📄 문서'} · ${receiverName} 귀중`;
-        const shareDesc = [
+        const shareTitle   = `${docTitles[docType] || '📄 문서'} · ${receiverName} 귀중`;
+        const shareDesc    = [
             data.total   ? `금액: ₩${Number(data.total).toLocaleString()}` : '',
-            data.date    ? `날짜: ${data.date}`                            : '',
-            data.bizName ? `발신: ${data.bizName}`                         : '',
-            data.account ? `계좌: ${data.account}`                         : ''
+            data.date || data.issueDate ? `날짜: ${data.date || data.issueDate}` : '',
+            data.bizName || (myBizInfo[data.bizKey || 'biz1'] || {}).bizName
+                ? `발신: ${data.bizName || (myBizInfo[data.bizKey || 'biz1'] || {}).bizName}` : '',
+            data.account ? `계좌: ${data.account}` : ''
         ].filter(Boolean).join('\n');
 
-        // ✅ 수정: buttons 완전 제거, link는 localhost로 설정
+        const cacheBuster = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        const safeLink    = imageUrl + (imageUrl.includes('?') ? '&' : '?') + 'cb=' + cacheBuster;
+
         Kakao.Share.sendDefault({
             objectType: 'feed',
+            installTalk: true,
             content: {
                 title:       shareTitle,
                 description: shareDesc,
                 imageUrl,
-                imageWidth:  794,
-                imageHeight: 1123,
-                link: {
-                    mobileWebUrl: 'http://localhost',
-                    webUrl:       'http://localhost'
-                }
+                imageWidth:  840,
+                imageHeight: 1100,
+                link: { mobileWebUrl: safeLink, webUrl: safeLink }
             }
-            // buttons 완전 제거
         });
 
         showAlarmToast('✅ 카카오톡 공유 창이 열렸습니다!', 'success');
 
     } catch (err) {
         removeKakaoProgressToast();
-        console.warn('[이미지 카카오 공유 실패]', err.message);
+        console.warn('[카카오 이미지 공유 실패]', err.message);
+        showAlarmToast('⚠️ 이미지 변환 실패 → 텍스트 방식으로 전환합니다', 'warning');
 
-        // 오류 종류별 안내 + 기존 방식 자동 Fallback
-        const errMsg = err.message || '';
-        if (errMsg.includes('uploadImage') || errMsg.includes('upload')) {
-            showAlarmToast('⚠️ 업로드 실패 → URL 방식으로 재시도합니다', 'warning');
-        } else if (errMsg.includes('canvas') || errMsg.includes('Blob')) {
-            showAlarmToast('⚠️ 이미지 변환 실패 → URL 방식으로 재시도합니다', 'warning');
-        } else {
-            showAlarmToast(`⚠️ 이미지 전송 실패 → URL 방식으로 재시도합니다`, 'warning');
-        }
-
-        // ★ URL 방식 fallback 대신 클립보드+팝업 방식으로 전환
-        setTimeout(() => {
-            const biz = (myBizInfo[data.bizKey||'biz1'] && myBizInfo[data.bizKey||'biz1'].bizName)
-                ? myBizInfo[data.bizKey||'biz1'] : (myBizInfo.biz1 || {});
-
-            const text = [
-                `[${docType==='invoice'?'청구서':docType==='statement'?'거래명세서':docType==='receipt'?'영수증':'견적서'}]`,
-                `수신: ${data.receiver || data.name || '고객'} 귀중`,
-                `금액: ₩${Number(data.total||0).toLocaleString()}`,
-                `날짜: ${data.date || ''}`,
-                `발신: ${data.bizName || biz.bizName || ''}`,
-                data.account || biz.account1 ? `계좌: ${data.account || biz.account1 || ''}` : '',
-                biz.tel || biz.mobile ? `전화: ${biz.tel || biz.mobile || ''}` : ''
-            ].filter(Boolean).join('\n');
-
-            navigator.clipboard.writeText(text)
-                .then(() => showKakaoSharePopup(text, data.phone || '', ''))
-                .catch(() => showKakaoSharePopup(text, data.phone || '', ''));
-        }, 500);
+        setTimeout(() => _fallbackKakaoShare(docType, data), 400);
     }
+}
+
+// ── 텍스트 fallback (앱키 없거나 업로드 실패 시) ──
+function _fallbackKakaoShare(docType, data) {
+    const biz = (myBizInfo[data.bizKey || 'biz1'] && myBizInfo[data.bizKey || 'biz1'].bizName)
+        ? myBizInfo[data.bizKey || 'biz1'] : (myBizInfo.biz1 || {});
+
+    const text = [
+        `[${docType === 'invoice' ? '청구서' : docType === 'statement' ? '거래명세서' : docType === 'receipt' ? '영수증' : '견적서'}]`,
+        `수신: ${data.receiver || data.name || '고객'} 귀중`,
+        `금액: ₩${Number(data.total || 0).toLocaleString()}`,
+        `날짜: ${data.date || data.issueDate || ''}`,
+        `발신: ${data.bizName || biz.bizName || ''}`,
+        data.account || biz.account1 ? `계좌: ${data.account || biz.account1 || ''}` : '',
+        biz.tel || biz.mobile ? `전화: ${biz.tel || biz.mobile || ''}` : ''
+    ].filter(Boolean).join('\n');
+
+    navigator.clipboard.writeText(text)
+        .then(()  => showKakaoSharePopup(text, data.phone || '', ''))
+        .catch(()  => showKakaoSharePopup(text, data.phone || '', ''));
 }
 
 
@@ -13685,6 +13704,9 @@ function openInChrome() {
     }
 })();
 </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
