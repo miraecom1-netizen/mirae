@@ -2985,24 +2985,25 @@ async function shareDocAsImageToKakao(docType, data) {
             data.account ? `계좌: ${data.account}`                         : ''
         ].filter(Boolean).join('\n');
 
+        // ✅ 수정: link를 imageUrl로 설정 (클릭 시 이미지 직접 열림)
         Kakao.Share.sendDefault({
             objectType: 'feed',
             content: {
                 title:       shareTitle,
                 description: shareDesc,
-                imageUrl,               // ★ 카카오 서버 이미지 URL
+                imageUrl,                    // 카카오 서버 이미지
                 imageWidth:  794,
                 imageHeight: 1123,
                 link: {
-                    mobileWebUrl: window.location.href,
-                    webUrl:       window.location.href
+                    mobileWebUrl: imageUrl,  // ← CRM 대신 이미지 URL
+                    webUrl:       imageUrl   // ← 클릭 시 이미지만 열림
                 }
             },
             buttons: [{
-                title: '💬 확인',
+                title: '🖼️ 문서 확인',
                 link: {
-                    mobileWebUrl: window.location.href,
-                    webUrl:       window.location.href
+                    mobileWebUrl: imageUrl,  // ← 이미지 직접 열기
+                    webUrl:       imageUrl
                 }
             }]
         });
@@ -13823,6 +13824,7 @@ function openInChrome() {
     }
 })();
 </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
