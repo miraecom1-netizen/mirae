@@ -10,6 +10,8 @@
             integrity="sha384-TiCUE00h649CAMonG018J2ujOgDKW/kVWlChEuu4jK2vxfAAD0eZxzCKakxg55G4"
             crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- ★ html2canvas (카카오 이미지 공유용) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
     <!-- ★ PWA 메타태그 -->
@@ -2518,6 +2520,514 @@ function shareDocToKakao(type, data) {
         data.total || 0
     );
 }
+
+/* ═══════════════════════════════════════════════════════════
+   ★★★ 이미지 변환 카카오 전송 시스템 (URL 초과 문제 완전 해결)
+   적용 범위:
+     ① 누적 서비스 이력 💬 카카오 버튼
+     ② 견적서/청구서/거래명세서 인쇄창 💬 카카오 버튼
+     ③ 견적 이력 테이블 💬 카카오 버튼
+════════════════════════════════════════════════════════════ */
+
+/**
+ * HTML 문자열 → 오프스크린 렌더링 → Blob 반환
+ */
+async function renderDocToBlob(htmlContent) {
+    return new Promise((resolve, reject) => {
+        const container = document.createElement('div');
+        container.style.cssText = [
+            'position:fixed',
+            'top:-99999px',
+            'left:-99999px',
+            'width:794px',
+            'min-height:100px',
+            'background:white',
+            'font-family:Malgun Gothic,Dotum,sans-serif',
+            'z-index:-9999',
+            'overflow:hidden',
+            'box-sizing:border-box'
+        ].join(';');
+
+        // 스크립트 제거, 스타일/이미지는 유지
+        container.innerHTML = htmlContent
+            .replace(/<script[\s\S]*?<\/script>/gi, '')
+            .replace(/onclick="[^"]*"/gi, '')
+            .replace(/onclick='[^']*'/gi, '');
+
+        document.body.appendChild(container);
+
+        // 렌더링 완료 대기 후 캡처
+        setTimeout(async () => {
+            try {
+                const canvas = await html2canvas(container, {
+                    scale:           1.5,
+                    useCORS:         true,
+                    allowTaint:      true,   // base64 도장 이미지 허용
+                    backgroundColor: '#ffffff',
+                    logging:         false,
+                    windowWidth:     794,
+                    width:           794,
+                    imageTimeout:    10000,
+                    removeContainer: true
+                });
+
+                canvas.toBlob((blob) => {
+                    if (document.body.contains(container)) {
+                        document.body.removeChild(container);
+                    }
+                    if (blob) resolve(blob);
+                    else reject(new Error('Canvas → Blob 변환 실패'));
+                }, 'image/jpeg', 0.82);
+
+            } catch (err) {
+                if (document.body.contains(container)) {
+                    document.body.removeChild(container);
+                }
+                reject(err);
+            }
+        }, 350);
+    });
+}
+
+/**
+ * Blob → 카카오 서버 업로드 → 공개 URL 반환
+ * Kakao.Share.uploadImage() 공식 API 사용
+ * 이미지는 카카오 서버에 100일간 보관
+ */
+async function uploadBlobToKakao(blob) {
+    if (!window.Kakao) throw new Error('카카오 SDK 미로드');
+    if (!Kakao.isInitialized()) throw new Error('카카오 SDK 미초기화');
+
+    // FileList 형태로 전달 (공식 API 요구사항)
+    const file = new File([blob], `crm_doc_${Date.now()}.jpg`, {
+        type: 'image/jpeg'
+    });
+
+    // DataTransfer를 통해 FileList 생성
+    const dt = new DataTransfer();
+    dt.items.add(file);
+
+    const result = await Kakao.Share.uploadImage({
+        file: dt.files   // FileList 타입
+    });
+
+    if (!result?.infos?.original?.url) {
+        throw new Error('카카오 업로드 응답에 URL 없음');
+    }
+    return result.infos.original.url;
+}
+
+/**
+ * 진행 토스트 (업로드 중 안내용 - 수동 제거 방식)
+ */
+function showKakaoProgressToast(msg) {
+    document.getElementById('kakao-img-progress-toast')?.remove();
+    const el = document.createElement('div');
+    el.id = 'kakao-img-progress-toast';
+    el.style.cssText = [
+        'position:fixed', 'bottom:22px', 'left:50%',
+        'transform:translateX(-50%)',
+        'background:#1a73e8', 'color:white',
+        'padding:14px 24px', 'border-radius:999px',
+        'font-size:13px', 'font-weight:bold',
+        'z-index:999999',
+        'box-shadow:0 4px 20px rgba(0,0,0,.35)',
+        'white-space:nowrap', 'max-width:90vw',
+        'text-align:center',
+        'display:flex', 'align-items:center', 'gap:9px',
+        'animation:slideInToast .3s ease'
+    ].join(';');
+    el.innerHTML = `<span style="font-size:16px;">⏳</span><span id="kakao-progress-text">${msg}</span>`;
+    document.body.appendChild(el);
+    return el;
+}
+
+function updateKakaoProgressToast(msg) {
+    const el = document.getElementById('kakao-progress-text');
+    if (el) el.textContent = msg;
+}
+
+function removeKakaoProgressToast() {
+    document.getElementById('kakao-img-progress-toast')?.remove();
+}
+
+/**
+ * ★ 캡처용 HTML 빌드 (서비스 이력 + 견적서 공통)
+ *   - data 구조: shareDocToKakao에서 쓰는 것과 동일
+ */
+function buildCaptureHtml(docType, data) {
+    // 사업자 정보
+    const bizKey = data.bizKey || 'biz1';
+    const biz = (myBizInfo[bizKey] && myBizInfo[bizKey].bizName)
+        ? myBizInfo[bizKey] : (myBizInfo.biz1 || {});
+
+    const docTitleMap = {
+        quote:     '견 &nbsp; 적 &nbsp; 서',
+        invoice:   '청 &nbsp; 구 &nbsp; 서',
+        statement: '거 래 명 세 서',
+        receipt:   '영 &nbsp; 수 &nbsp; 증'
+    };
+    const accentColor = docType === 'receipt' ? '#34a853'
+                      : docType === 'invoice' ? '#e65100'
+                      : '#e65100';
+
+    // 품목 행
+    const items = (data.itemsArr || []).filter(it => String(it.name||'').trim());
+    let rowsHTML = '';
+
+    if (items.length) {
+        items.forEach((it, i) => {
+            const qty = Number(it.qty) || 1;
+            const price = Number(it.price) || 0;
+            const amt = Number(it.amt) || (qty * price);
+            rowsHTML += `
+            <tr>
+                <td style="text-align:center;border:1px solid #ddd;padding:6px 4px;">${i+1}</td>
+                <td style="text-align:left;border:1px solid #ddd;padding:6px 8px;word-break:break-all;">${escapeHtml(it.name||'')}</td>
+                <td style="text-align:center;border:1px solid #ddd;padding:6px 4px;">${qty.toLocaleString()}</td>
+                <td style="text-align:right;border:1px solid #ddd;padding:6px 8px;">${price?price.toLocaleString():''}</td>
+                <td style="text-align:right;border:1px solid #ddd;padding:6px 8px;font-weight:bold;">${amt.toLocaleString()}</td>
+            </tr>`;
+        });
+    } else {
+        // 품목 없으면 서비스 내용으로 단일 행
+        rowsHTML = `
+        <tr>
+            <td style="text-align:center;border:1px solid #ddd;padding:6px 4px;">1</td>
+            <td style="text-align:left;border:1px solid #ddd;padding:6px 8px;">${escapeHtml(data.title||data.items||'서비스')}</td>
+            <td style="text-align:center;border:1px solid #ddd;padding:6px 4px;">1</td>
+            <td style="text-align:right;border:1px solid #ddd;padding:6px 8px;">${Number(data.total||0).toLocaleString()}</td>
+            <td style="text-align:right;border:1px solid #ddd;padding:6px 8px;font-weight:bold;">${Number(data.total||0).toLocaleString()}</td>
+        </tr>`;
+    }
+
+    // 빈 행으로 최소 6행 채우기
+    const minRows = 6;
+    const existRows = items.length || 1;
+    for (let i = existRows; i < minRows; i++) {
+        rowsHTML += `<tr>
+            <td style="border:1px solid #ddd;height:26px;"></td>
+            <td style="border:1px solid #ddd;"></td>
+            <td style="border:1px solid #ddd;"></td>
+            <td style="border:1px solid #ddd;"></td>
+            <td style="border:1px solid #ddd;"></td>
+        </tr>`;
+    }
+
+    // 금액 계산
+    const total = Number(data.total || 0);
+    const vatType = data.vatType || 'included';
+    let supply = total, tax = 0;
+    if (vatType === 'included')  { supply = Math.round(total/1.1); tax = total - supply; }
+    else if (vatType === 'excluded') { tax = Math.round(total*0.1); supply = total; }
+
+    // 도장 이미지 (base64 직접 삽입)
+    const sealHTML = biz.seal
+        ? `<img src="${biz.seal}" style="width:44px;height:44px;
+           object-fit:contain;opacity:.88;flex-shrink:0;">`
+        : '';
+
+    // 계좌
+    const account = data.account || data.bizTel ? '' : '';
+    const accountSection = (data.account && data.account.trim())
+        ? `<div style="border:1.5px solid #1a73e8;border-radius:8px;
+               padding:9px 14px;background:#f0f6ff;margin-top:10px;">
+            <div style="font-weight:bold;color:#1a73e8;font-size:11px;
+                        margin-bottom:3px;">💳 입금 계좌</div>
+            <div style="font-size:13px;font-weight:bold;color:#b71c1c;">
+                ${escapeHtml(data.account)}</div>
+           </div>`
+        : '';
+
+    return `
+<div style="font-family:'Malgun Gothic',Dotum,sans-serif;
+            font-size:13px;padding:22px;background:white;
+            width:750px;color:#000;box-sizing:border-box;">
+
+    <!-- 헤더 -->
+    <div style="display:flex;justify-content:space-between;
+                align-items:flex-end;border-bottom:3px solid ${accentColor};
+                padding-bottom:8px;margin-bottom:12px;">
+        <div style="font-size:24px;font-weight:900;
+                    letter-spacing:8px;color:${accentColor};">
+            ${docTitleMap[docType] || '문 서'}
+        </div>
+        <div style="font-size:12px;color:#666;">
+            작성일자: <b>${escapeHtml(data.date||data.issueDate||'')}</b>
+        </div>
+    </div>
+
+    <!-- 수신/공급자 2단 테이블 -->
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+
+        <!-- 공급받는자 -->
+        <table style="flex:1;border-collapse:collapse;
+                      font-size:12px;width:49%;">
+            <tr>
+                <th colspan="2" style="background:#e3f2fd;padding:6px 5px;
+                    font-size:12px;border:1px solid #bbb;
+                    letter-spacing:3px;text-align:center;">
+                    공 급 받 는 자
+                </th>
+            </tr>
+            <tr>
+                <th style="background:#f5f5f5;width:60px;padding:5px 7px;
+                    border:1px solid #ccc;white-space:nowrap;font-weight:bold;">
+                    상호/성명
+                </th>
+                <td style="padding:5px 7px;border:1px solid #ccc;font-weight:bold;">
+                    ${escapeHtml(data.receiver||data.name||'')} 귀하
+                </td>
+            </tr>
+            <tr>
+                <th style="background:#f5f5f5;padding:5px 7px;
+                    border:1px solid #ccc;font-weight:bold;">연락처</th>
+                <td style="padding:5px 7px;border:1px solid #ccc;">
+                    ${escapeHtml(data.phone||'')}
+                </td>
+            </tr>
+            <tr>
+                <th style="background:#f5f5f5;padding:5px 7px;
+                    border:1px solid #ccc;font-weight:bold;">주소</th>
+                <td style="padding:5px 7px;border:1px solid #ccc;
+                    font-size:11px;word-break:break-all;">
+                    ${escapeHtml(data.receiverAddr||data.addr||'')}
+                </td>
+            </tr>
+        </table>
+
+        <!-- 공급자 -->
+        <table style="flex:1;border-collapse:collapse;
+                      font-size:12px;width:49%;position:relative;">
+            <tr>
+                <th colspan="2" style="background:#fff3e0;padding:6px 5px;
+                    font-size:12px;border:1px solid #bbb;
+                    letter-spacing:3px;text-align:center;">
+                    공 급 자
+                </th>
+            </tr>
+            <tr>
+                <th style="background:#f5f5f5;width:60px;padding:5px 7px;
+                    border:1px solid #ccc;white-space:nowrap;font-weight:bold;">
+                    등록번호
+                </th>
+                <td style="padding:5px 7px;border:1px solid #ccc;font-weight:bold;">
+                    ${escapeHtml(data.bizNum||biz.bizNum||'')}
+                </td>
+            </tr>
+            <tr>
+                <th style="background:#f5f5f5;padding:5px 7px;
+                    border:1px solid #ccc;font-weight:bold;">상호/대표</th>
+                <td style="padding:5px 7px;border:1px solid #ccc;">
+                    <div style="display:flex;align-items:center;
+                                gap:5px;flex-wrap:nowrap;">
+                        <span style="font-weight:bold;">
+                            ${escapeHtml(data.bizName||biz.bizName||'')}
+                        </span>
+                        <span>${escapeHtml(data.repName||biz.repName||'')}</span>
+                        ${sealHTML}
+                    </div>
+                </td>
+            </tr>
+            <tr>
+                <th style="background:#f5f5f5;padding:5px 7px;
+                    border:1px solid #ccc;font-weight:bold;">전화</th>
+                <td style="padding:5px 7px;border:1px solid #ccc;">
+                    ${escapeHtml(data.bizTel||biz.tel||biz.mobile||'')}
+                </td>
+            </tr>
+            <tr>
+                <th style="background:#f5f5f5;padding:5px 7px;
+                    border:1px solid #ccc;font-weight:bold;">업태/종목</th>
+                <td style="padding:5px 7px;border:1px solid #ccc;font-size:11px;">
+                    ${escapeHtml(data.bizType||biz.bizType||'')} /
+                    ${escapeHtml(data.bizItem||biz.bizItem||'')}
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- 합계 배너 -->
+    <div style="background:${accentColor};color:white;
+                display:flex;justify-content:space-between;
+                align-items:center;padding:10px 16px;
+                border-radius:6px;margin-bottom:10px;">
+        <span style="font-size:14px;font-weight:bold;">합계금액</span>
+        <span style="font-size:20px;font-weight:900;">
+            ₩ ${total.toLocaleString()}
+        </span>
+    </div>
+
+    <!-- 품목 테이블 -->
+    <table style="width:100%;border-collapse:collapse;
+                  font-size:12px;margin-bottom:10px;">
+        <thead>
+            <tr style="background:#fff3e0;">
+                <th style="border:1px solid #ccc;padding:7px 4px;
+                    width:6%;text-align:center;">No.</th>
+                <th style="border:1px solid #ccc;padding:7px 8px;
+                    width:40%;text-align:left;">품명 / 내용</th>
+                <th style="border:1px solid #ccc;padding:7px 4px;
+                    width:10%;text-align:center;">수량</th>
+                <th style="border:1px solid #ccc;padding:7px 8px;
+                    width:20%;text-align:right;">단가</th>
+                <th style="border:1px solid #ccc;padding:7px 8px;
+                    width:24%;text-align:right;">금액</th>
+            </tr>
+        </thead>
+        <tbody>${rowsHTML}</tbody>
+        <tfoot>
+            <tr style="background:#fafafa;">
+                <td colspan="3" style="border:1px solid #ccc;padding:6px 8px;
+                    text-align:right;font-weight:bold;">공급가액</td>
+                <td colspan="2" style="border:1px solid #ccc;padding:6px 8px;
+                    text-align:right;font-weight:bold;">
+                    ${supply.toLocaleString()}원
+                </td>
+            </tr>
+            <tr style="background:#fafafa;">
+                <td colspan="3" style="border:1px solid #ccc;padding:6px 8px;
+                    text-align:right;font-weight:bold;">부가세</td>
+                <td colspan="2" style="border:1px solid #ccc;padding:6px 8px;
+                    text-align:right;font-weight:bold;">
+                    ${tax.toLocaleString()}원
+                </td>
+            </tr>
+            <tr>
+                <td colspan="3" style="border:2px solid ${accentColor};
+                    padding:7px 8px;text-align:right;
+                    font-weight:bold;font-size:13px;
+                    background:#fff3e0;">합계</td>
+                <td colspan="2" style="border:2px solid ${accentColor};
+                    padding:7px 8px;text-align:right;
+                    font-weight:bold;font-size:15px;
+                    background:#fff3e0;">
+                    ₩ ${total.toLocaleString()}
+                </td>
+            </tr>
+        </tfoot>
+    </table>
+
+    <!-- 비고 -->
+    ${data.note ? `
+    <div style="border:1px solid #e0e0e0;border-radius:6px;
+                padding:8px 12px;background:#fafafa;
+                font-size:11px;color:#555;margin-bottom:8px;">
+        <b>비고:</b> ${escapeHtml(data.note)}
+    </div>` : ''}
+
+    <!-- 계좌 -->
+    ${accountSection}
+</div>`;
+}
+
+/**
+ * ★★★ 핵심 통합 함수
+ * - 이미지 방식 우선 시도
+ * - 실패 시 기존 URL 방식 자동 Fallback
+ * - 호출 위치: ① 서비스 이력, ② 인쇄창 postMessage, ③ 견적 이력
+ */
+async function shareDocAsImageToKakao(docType, data) {
+
+    // ── 앱키 확인 ──
+    const appKey = loadKakaoAppKey();
+    if (!appKey) {
+        showAlarmToast('⚠️ 카카오 앱키 미설정 → 기존 방식으로 전송합니다', 'warning');
+        shareDocToKakao(docType, data);
+        return;
+    }
+
+    // ── SDK 초기화 ──
+    if (!initKakaoSDK()) {
+        showAlarmToast('⚠️ SDK 초기화 실패 → 기존 방식으로 전송합니다', 'warning');
+        shareDocToKakao(docType, data);
+        return;
+    }
+
+    // ── html2canvas 라이브러리 확인 ──
+    if (typeof html2canvas === 'undefined') {
+        showAlarmToast('⚠️ 이미지 라이브러리 미로드 → 기존 방식으로 전송합니다', 'warning');
+        shareDocToKakao(docType, data);
+        return;
+    }
+
+    // ── 진행 상태 표시 ──
+    showKakaoProgressToast('📄 문서 이미지 생성 중...');
+
+    try {
+        // STEP 1: 캡처용 HTML 생성
+        const captureHtml = buildCaptureHtml(docType, data);
+
+        // STEP 2: HTML → Blob 변환
+        updateKakaoProgressToast('🖼️ 이미지 변환 중...');
+        const blob = await renderDocToBlob(captureHtml);
+
+        // STEP 3: 카카오 서버 업로드
+        updateKakaoProgressToast('☁️ 카카오 서버 업로드 중...');
+        const imageUrl = await uploadBlobToKakao(blob);
+
+        // STEP 4: 카카오 공유 실행
+        removeKakaoProgressToast();
+
+        const docTitles = {
+            quote:     '📋 견적서',
+            invoice:   '💵 청구서',
+            statement: '📄 거래명세서',
+            receipt:   '🧾 영수증'
+        };
+
+        const receiverName = data.receiver || data.name || '고객';
+        const shareTitle = `${docTitles[docType] || '📄 문서'} · ${receiverName} 귀중`;
+        const shareDesc = [
+            data.total   ? `금액: ₩${Number(data.total).toLocaleString()}` : '',
+            data.date    ? `날짜: ${data.date}`                            : '',
+            data.bizName ? `발신: ${data.bizName}`                         : '',
+            data.account ? `계좌: ${data.account}`                         : ''
+        ].filter(Boolean).join('\n');
+
+        Kakao.Share.sendDefault({
+            objectType: 'feed',
+            content: {
+                title:       shareTitle,
+                description: shareDesc,
+                imageUrl,               // ★ 카카오 서버 이미지 URL
+                imageWidth:  794,
+                imageHeight: 1123,
+                link: {
+                    mobileWebUrl: window.location.href,
+                    webUrl:       window.location.href
+                }
+            },
+            buttons: [{
+                title: '💬 확인',
+                link: {
+                    mobileWebUrl: window.location.href,
+                    webUrl:       window.location.href
+                }
+            }]
+        });
+
+        showAlarmToast('✅ 카카오톡 공유 창이 열렸습니다!', 'success');
+
+    } catch (err) {
+        removeKakaoProgressToast();
+        console.warn('[이미지 카카오 공유 실패]', err.message);
+
+        // 오류 종류별 안내 + 기존 방식 자동 Fallback
+        const errMsg = err.message || '';
+        if (errMsg.includes('uploadImage') || errMsg.includes('upload')) {
+            showAlarmToast('⚠️ 업로드 실패 → URL 방식으로 재시도합니다', 'warning');
+        } else if (errMsg.includes('canvas') || errMsg.includes('Blob')) {
+            showAlarmToast('⚠️ 이미지 변환 실패 → URL 방식으로 재시도합니다', 'warning');
+        } else {
+            showAlarmToast(`⚠️ 이미지 전송 실패 → URL 방식으로 재시도합니다`, 'warning');
+        }
+
+        // 500ms 후 기존 방식으로 자동 Fallback
+        setTimeout(() => shareDocToKakao(docType, data), 500);
+    }
+}
+
 
 // ── 카카오 공유 안내 팝업 ──
 function showKakaoSharePopup(text, phone, viewUrl) {
@@ -5570,18 +6080,12 @@ document.addEventListener('visibilitychange', async ()=>{
 window.addEventListener('message', function(e) {
     if (!e.data) return;
 
-    // ★ 카카오 공유 요청 수신 (팝업창 → 부모창)
     if (e.data.crmAction === 'shareKakao') {
+        // ★ 기존 URL 방식 대신 이미지 방식 우선 시도
+        shareDocAsImageToKakao(e.data.type, e.data.data);
         try {
-            shareDocToKakao(e.data.type, e.data.data);
-        } catch(err) {
-            console.warn('postMessage 카카오 공유 실패:', err);
-        }
-        // ACK 즉시 전송
-        try {
-            if (e.source && !e.source.closed) {
+            if (e.source && !e.source.closed)
                 e.source.postMessage({ crmAction: 'kakaoAck' }, '*');
-            }
         } catch(ex) {}
         return;
     }
@@ -8329,8 +8833,8 @@ function renderServices(){
                 ${pb}
                 <button class="btn-action"
                     style="background:#fee500;color:#3c1e1e;font-weight:bold;"
-                    onclick='shareDocToKakao("receipt", ${JSON.stringify(_shareData).replace(/'/g,"&#39;")})'>
-                    💬 카카오
+                    onclick='shareDocAsImageToKakao("receipt", ${JSON.stringify(_shareData).replace(/'/g,"&#39;")})'>
+                    🖼️ 카카오
                 </button>
                 <button class="btn-action" style="background:#4caf50;color:white;"
                     onclick="openPrintWindow(${ri},'receipt')">🖨️영수증</button>
@@ -9208,7 +9712,44 @@ function cancelQuoteEdit(){if(!confirm('현재 견적 수정 모드를 종료하
 function resetQuoteForm(skipConfirm=false){if(!skipConfirm&&!confirm("초기화하시겠습니까?"))return;document.getElementById('quoteItemBody').innerHTML='';quoteRowId=0;selectedQuoteCustomerId=null;editingQuoteIndex=null;['q-issue-date','q-valid','q-receiver','q-receiver-tel','q-receiver-addr','q-title','q-note'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});if(document.getElementById('q-account-select'))document.getElementById('q-account-select').value='';updateQuoteAccountOptions('');document.getElementById('q-issue-date').value=getKoreanDate();document.querySelector('input[name="q-vat-type"][value="included"]').checked=true;addQuoteRow();addQuoteRow();addQuoteRow();recalcQuote();renderQuoteUnpaidSection();clearQuotePhotoSheet(true);closeQuoteAc();closeQuoteHistoryAc();syncQuotePhotoSummary();updateQuoteSaveButtonState();isFormDirty=false;}
 function saveQuoteHistory(docType='quote'){const receiver=document.getElementById('q-receiver').value.trim();if(!receiver)return alert("수신처(고객명)를 입력하세요.");const vt=document.querySelector('input[name="q-vat-type"]:checked').value;const rows=document.getElementById('quoteItemBody').rows;const items=[];for(let row of rows){const id=row.id.replace('qrow-','');const name=document.getElementById(`qn-${id}`).value.trim();if(!name)continue;items.push({name,spec:document.getElementById(`qs-${id}`).value,qty:document.getElementById(`qq-${id}`).value,price:document.getElementById(`qp-${id}`).value,amt:(parseFloat(document.getElementById(`qq-${id}`).value)||0)*(parseFloat(document.getElementById(`qp-${id}`).value)||0)});}if(!items.length)return alert("품목을 1개 이상 입력하세요.");const photoSheet=collectQuotePhotoSheet();const total=parseInt(document.getElementById('qt-total').textContent.replace(/[^0-9]/g,''))||0;const base=editingQuoteIndex!==null&&quotes[editingQuoteIndex]?quotes[editingQuoteIndex]:null;const normalizedDocType=(docType==='invoice'||docType==='statement')?docType:'quote';const titleEl=document.getElementById('q-title');const forcedTitle=getQuoteHistoryDocTitle(normalizedDocType);const currentTitle=(titleEl&&titleEl.value.trim())||'';if(titleEl&&normalizedDocType!=='quote')titleEl.value=forcedTitle;if(titleEl&&normalizedDocType==='quote'&&(!currentTitle||currentTitle==='청구서'||currentTitle==='거래명세서'))titleEl.value='견적서';const storedTitle=normalizedDocType==='quote'?((titleEl&&titleEl.value.trim())||'견적서'):forcedTitle;const payload={id:base&&base.id?base.id:Date.now(),no:base&&base.no?base.no:quotes.length+1,issueDate:document.getElementById('q-issue-date').value,valid:document.getElementById('q-valid').value,receiver,tel:document.getElementById('q-receiver-tel').value,addr:document.getElementById('q-receiver-addr').value,title:storedTitle,note:document.getElementById('q-note').value,titleRaw:storedTitle,account:document.getElementById('q-account-select').value.trim(),vatType:vt,items,total,bizKey:selectedQuoteBiz,photoSheet,photoCount:(photoSheet.photos||[]).length,updatedAt:Date.now(),docType:normalizedDocType};if(base){quotes[editingQuoteIndex]={...base,...payload};}else{quotes.push(payload);editingQuoteIndex=quotes.length-1;}quotes.forEach((q,i)=>q.no=i+1);syncLocalData();isFormDirty=false;renderQuoteHistory();updateQuoteSaveButtonState();alert(base?`${forcedTitle}가 수정 저장되었습니다!`:`${forcedTitle}가 저장되었습니다!`);}
 function renderQuoteHistory(){const tb=document.getElementById('quoteHistoryBody');if(!tb)return;tb.innerHTML='';const keyword=((document.getElementById('quote-history-search')||{}).value||'');const entries=getFilteredQuoteEntries(keyword);updateQuoteHistorySummary(keyword,entries.length);if(!quotes.length){tb.innerHTML='<tr><td colspan="8" style="color:#999;padding:18px;">저장된 견적 이력이 없습니다.</td></tr>';return;}if(!entries.length){tb.innerHTML='<tr><td colspan="8" style="color:#999;padding:18px;">검색 조건에 맞는 견적이 없습니다.</td></tr>';return;}entries.slice().reverse().forEach(({q,idx})=>{const bl=getBizLabel(q.bizKey||'biz1');const bc=getBizColor(q.bizKey||'biz1');const bb=getBizBg(q.bizKey||'biz1');const badge=`<span style="font-size:11px;font-weight:bold;color:${bc};background:${bb};padding:2px 7px;border-radius:10px;border:1px solid ${bc};">${bl}</span>`;const photoCount=(q.photoCount!==undefined?q.photoCount:((q.photoSheet&&q.photoSheet.photos)?q.photoSheet.photos.length:0))||0;const photoBadge=photoCount?`<span class="quote-photo-count-badge">📷 ${photoCount}장</span>`:'-';const docType=getQuoteHistoryDocType(q);const kakaoLabel=getQuoteHistoryKakaoLabel(docType);const printLabel=getQuoteHistoryPrintLabel(docType);const titleLabel=q.title||getQuoteHistoryDocTitle(docType);const row=tb.insertRow();if(editingQuoteIndex===idx)row.style.background='#fff8e1';row.innerHTML=`<td><b>${q.no}</b></td><td>${q.issueDate||'-'}</td><td><b>${q.receiver||'-'}</b>${q.tel?`<div style="font-size:11px;color:#888;">${escapeHtml(q.tel)}</div>`:''}</td><td style="text-align:left;">${titleLabel}</td><td style="font-weight:bold;color:var(--quote);">${(q.total||0).toLocaleString()}원</td><td>${badge}</td><td>${photoBadge}</td><td style="display:flex;gap:3px;justify-content:center;flex-wrap:wrap;"><button class="btn-action" style="background:#fee500;color:#3c1e1e;font-weight:bold;" onclick="shareQuoteHistoryToKakao(${idx})">${kakaoLabel}</button><button class="btn-action" style="background:var(--quote);color:white;" onclick="printQuoteById(${idx})">${printLabel}</button><button class="btn-action" style="background:#1565c0;color:white;" onclick="printQuotePhotoSheetById(${idx})">🖼️사진</button><button class="btn-action" style="background:var(--primary);color:white;" onclick="loadQuoteToForm(${idx})">📋불러오기</button><button class="btn-action" style="color:red;background:white;border:1px solid red;" onclick="deleteQuote(${idx})">삭제</button></td>`;});}
-function shareQuoteHistoryToKakao(idx){const q=quotes[idx];if(!q)return;const docType=getQuoteHistoryDocType(q);const biz=(myBizInfo[q.bizKey||'biz1']&&myBizInfo[q.bizKey||'biz1'].bizName)?myBizInfo[q.bizKey||'biz1']:myBizInfo.biz1;shareDocToKakao(docType,{receiver:String(q.receiver||''),itemsArr:(q.items||[]).map(it=>({name:String(it.name||''),spec:String(it.spec||''),qty:it.qty,price:it.price,amt:Number(it.amt)||(Number(it.qty||1)*Number(it.price||0))})),total:Number(q.total||0),date:String(q.issueDate||''),bizName:String(biz.bizName||''),bizTel:String(biz.tel||biz.mobile||''),account:String(q.account||''),phone:String(q.tel||'')});}
+function shareQuoteHistoryToKakao(idx) {
+    const q = quotes[idx];
+    if (!q) return;
+
+    const docType = getQuoteHistoryDocType(q);
+    const biz = (myBizInfo[q.bizKey || 'biz1'] && myBizInfo[q.bizKey || 'biz1'].bizName)
+        ? myBizInfo[q.bizKey || 'biz1'] : myBizInfo.biz1;
+
+    const data = {
+        receiver:    String(q.receiver || ''),
+        itemsArr:    (q.items || []).map(it => ({
+            name:  String(it.name  || ''),
+            spec:  String(it.spec  || ''),
+            qty:   it.qty,
+            price: it.price,
+            amt:   Number(it.amt) || (Number(it.qty||1) * Number(it.price||0))
+        })),
+        total:       Number(q.total || 0),
+        date:        String(q.issueDate || ''),
+        vatType:     q.vatType || 'included',
+        title:       q.title  || '',
+        note:        q.note   || '',
+        phone:       String(q.tel  || ''),
+        receiverAddr:String(q.addr || ''),
+        bizKey:      q.bizKey || 'biz1',
+        bizName:     biz.bizName  || '',
+        bizNum:      biz.bizNum   || '',
+        repName:     biz.repName  || '',
+        bizAddress:  biz.address  || '',
+        bizType:     biz.bizType  || '',
+        bizItem:     biz.bizItem  || '',
+        bizTel:      biz.tel || biz.mobile || '',
+        account:     q.account || biz.account1 || ''
+    };
+
+    // ★ 이미지 방식으로 전송 (실패 시 URL 방식 자동 Fallback)
+    shareDocAsImageToKakao(docType, data);
+}
 function loadQuoteToForm(idx){const q=quotes[idx];if(!q)return;editingQuoteIndex=idx;updateQuoteSaveButtonState();selectQuoteBiz(q.bizKey||'biz1');document.getElementById('q-issue-date').value=q.issueDate||getKoreanDate();document.getElementById('q-valid').value=q.valid||'';document.getElementById('q-receiver').value=q.receiver||'';document.getElementById('q-receiver-tel').value=q.tel||'';document.getElementById('q-receiver-addr').value=q.addr||'';document.getElementById('q-title').value=q.title||'';document.getElementById('q-note').value=q.note||'';selectedQuoteCustomerId=(customers.find(c=>normalizeQuoteLookupText(c.name)===normalizeQuoteLookupText(q.receiver||'')&&(!normalizeQuoteLookupPhone(q.tel||'')||normalizeQuoteLookupPhone(c.phone)===normalizeQuoteLookupPhone(q.tel||'')))||{}).id||null;updateQuoteAccountOptions(q.account||'');document.querySelector(`input[name="q-vat-type"][value="${q.vatType||'included'}"]`).checked=true;document.getElementById('quoteItemBody').innerHTML='';quoteRowId=0;(q.items||[]).forEach(it=>addQuoteRow(it.name,it.spec,it.qty,it.price));loadQuotePhotoSheet(q.photoSheet||{});if(!document.getElementById('q-photo-date').value)document.getElementById('q-photo-date').value=q.issueDate||getKoreanDate();recalcQuote();renderQuoteUnpaidSection();syncQuotePhotoSummary();window.scrollTo({top:0,behavior:'smooth'});alert("견적이 불러와졌습니다. 수정 후 '수정 저장'을 누르면 기존 견적이 갱신됩니다.");}
 function deleteQuote(idx){if(!confirm("삭제?"))return;quotes.splice(idx,1);quotes.forEach((q,i)=>q.no=i+1);if(editingQuoteIndex===idx)editingQuoteIndex=null;else if(editingQuoteIndex!==null&&idx<editingQuoteIndex)editingQuoteIndex--;syncLocalData();renderQuoteHistory();updateQuoteSaveButtonState();}
 function printQuoteById(idx){const q=quotes[idx];if(!q)return;loadQuoteToForm(idx);setTimeout(()=>printQuote(getQuoteHistoryDocType(q)),200);}
@@ -13282,6 +13823,7 @@ function openInChrome() {
     }
 })();
 </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
