@@ -2835,27 +2835,21 @@ async function shareDocAsImageToKakao(docType, data) {
             data.account ? `계좌: ${data.account}`                         : ''
         ].filter(Boolean).join('\n');
 
-        // ✅ 수정: link를 imageUrl로 설정 (클릭 시 이미지 직접 열림)
+        // ✅ 수정: buttons 완전 제거, link는 localhost로 설정
         Kakao.Share.sendDefault({
             objectType: 'feed',
             content: {
                 title:       shareTitle,
                 description: shareDesc,
-                imageUrl,                    // 카카오 서버 이미지
+                imageUrl,
                 imageWidth:  794,
                 imageHeight: 1123,
                 link: {
-                    mobileWebUrl: imageUrl,  // ← CRM 대신 이미지 URL
-                    webUrl:       imageUrl   // ← 클릭 시 이미지만 열림
+                    mobileWebUrl: 'http://localhost',
+                    webUrl:       'http://localhost'
                 }
-            },
-            buttons: [{
-                title: '🖼️ 문서 확인',
-                link: {
-                    mobileWebUrl: imageUrl,  // ← 이미지 직접 열기
-                    webUrl:       imageUrl
-                }
-            }]
+            }
+            // buttons 완전 제거
         });
 
         showAlarmToast('✅ 카카오톡 공유 창이 열렸습니다!', 'success');
