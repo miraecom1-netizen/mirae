@@ -8667,23 +8667,20 @@ function renderServices(){
             ? `<div style="margin-top:6px;font-size:11px;color:var(--quote);background:#fff3e0;border:1px solid #ffe0b2;border-radius:6px;padding:4px 6px;">📦 ${itemSummary}</div>`
             : '');
 
-        // ★ 카카오 공유 데이터 - 전체 품목 포함
+        // ★ 공유 데이터 (문서 종류 선택용 공통 데이터)
         const _biz = (myBizInfo[bk] && myBizInfo[bk].bizName)
                      ? myBizInfo[bk] : (myBizInfo.biz1 || {});
         const _items = getServiceDocumentItems(s);
 
-        const _shareData = {
-            type:        'receipt',
+        const _shareDataBase = {
             receiver:    c.name   || '',
             itemsArr:    _items,
             total:       Number(s.price) || 0,
             date:        s.date   || '',
             vatType:     s.vat    || 'included',
             title:       s.content ? s.content.split('\n')[0].substring(0,30) : '',
-            // 공급받는자
             phone:       c.phone  || '',
             receiverAddr:c.addr   || '',
-            // 공급자
             bizKey:      bk,
             bizName:     _biz.bizName  || '',
             bizNum:      _biz.bizNum   || '',
@@ -8695,11 +8692,8 @@ function renderServices(){
             account:     _biz.account1 || ''
         };
 
-        // JSON 직렬화 후 HTML 속성에 안전하게 삽입
-        const _dataStr = JSON.stringify(_shareData)
-            .replace(/\\/g, '\\\\')
-            .replace(/'/g, "\\'")
-            .replace(/"/g, '&quot;');
+        // JSON 직렬화 (onclick에서 직접 사용하지 않고 data 속성으로 전달)
+        const shareDataStr = encodeURIComponent(JSON.stringify(_shareDataBase));
 
         list.insertRow().innerHTML = `
             <td>${s.date}${s.reservationTime
@@ -8710,13 +8704,32 @@ function renderServices(){
             <td style="text-align:left;color:#666;">${s.memo || '-'}</td>
             <td>${cs}</td>
             <td>${bBadge}</td>
-            <td style="display:flex;gap:3px;justify-content:center;flex-wrap:wrap;">
+            <td style="display:flex;gap:3px;justify-content:center;flex-wrap:wrap;align-items:center;">
                 ${pb}
-                <button class="btn-action"
-                    style="background:#fee500;color:#3c1e1e;font-weight:bold;"
-                    onclick='shareDocAsImageToKakao("receipt", ${JSON.stringify(_shareData).replace(/'/g,"&#39;")})'>
-                    🖼️ 카카오
-                </button>
+
+                <!-- ★ 문서 종류 선택 + 카카오 전송 그룹 -->
+                <div style="display:flex;align-items:center;gap:2px;
+                            background:#fffbe6;border:1.5px solid #e6cf00;
+                            border-radius:8px;overflow:hidden;flex-shrink:0;">
+                    <select id="doc-type-select-${ri}"
+                        style="padding:4px 6px;font-size:11px;font-weight:bold;
+                               color:#3c1e1e;background:#fee500;
+                               border:none;outline:none;cursor:pointer;
+                               min-width:70px;height:28px;">
+                        <option value="receipt">🧾 영수증</option>
+                        <option value="statement">📄 거래명세서</option>
+                        <option value="invoice">💵 청구서</option>
+                    </select>
+                    <button
+                        style="background:#fee500;color:#3c1e1e;border:none;
+                               padding:4px 8px;font-size:11px;font-weight:bold;
+                               cursor:pointer;height:28px;white-space:nowrap;"
+                        onclick="sendServiceDocToKakao(${ri}, '${shareDataStr}')">
+                        💬 카카오
+                    </button>
+                </div>
+
+                <!-- 인쇄 버튼들 -->
                 <button class="btn-action" style="background:#4caf50;color:white;"
                     onclick="openPrintWindow(${ri},'receipt')">🖨️영수증</button>
                 <button class="btn-action" style="background:#009688;color:white;"
@@ -8728,6 +8741,49 @@ function renderServices(){
                     onclick="deleteService(${ri})">삭제</button>
             </td>`;
     });
+}
+
+/* ═══════════════════════════════════════════
+   ★ 누적 서비스 내역 - 문서 종류 선택 카카오 전송
+═══════════════════════════════════════════ */
+function sendServiceDocToKakao(serviceIdx, shareDataStr) {
+    // 선택된 문서 종류 가져오기
+    const selectEl = document.getElementById(`doc-type-select-${serviceIdx}`);
+    const docType  = selectEl ? selectEl.value : 'receipt';
+
+    // 문서 종류별 한글 이름
+    const docNames = {
+        receipt:   '영수증',
+        statement: '거래명세서',
+        invoice:   '청구서'
+    };
+
+    // data 복원
+    let shareData = {};
+    try {
+        shareData = JSON.parse(decodeURIComponent(shareDataStr));
+    } catch(e) {
+        showAlarmToast('⚠️ 데이터 파싱 오류', 'danger');
+        return;
+    }
+
+    // 문서 종류 주입
+    shareData.type = docType;
+
+    // 제목도 문서 종류에 맞게 업데이트
+    const docTitlePrefix = {
+        receipt:   '🧾 영수증',
+        statement: '📄 거래명세서',
+        invoice:   '💵 청구서'
+    };
+
+    showAlarmToast(
+        `💬 ${docNames[docType]} 카카오 전송 준비 중...`,
+        'info'
+    );
+
+    // 이미지 방식으로 카카오 전송
+    shareDocAsImageToKakao(docType, shareData);
 }
 function editService(idx){const s=customers.find(c=>c.id==currentId).services[idx];document.getElementById('edit-service-idx').value=idx;document.getElementById('s-date').value=s.date;document.getElementById('s-time').value=s.reservationTime||'';document.getElementById('s-content').value=s.content;loadServiceItemsToForm(s.items||[]);document.getElementById('s-price').value=s.price;document.querySelector(`input[name="s-vat"][value="${s.vat||'부가세포함'}"]`).checked=true;document.getElementById('s-completed').checked=(s.isCompleted!==false);document.getElementById('s-memo').value=s.memo;document.getElementById('s-unpaid').checked=s.isUnpaid||false;document.getElementById('s-biz-select').value=s.bizKey||'biz1';updateBizPreview();document.getElementById('file-before').value='';document.getElementById('file-after').value='';resetServicePhotoDeleteState();updateServiceCustomerOutstandingUI();updateServicePhotoUI();document.getElementById('btn-s-save').innerText='수정 적용';isFormDirty=false;}
 function clearServiceForm(){isFormDirty=false;document.getElementById('edit-service-idx').value='';document.getElementById('s-unpaid').checked=true;document.getElementById('s-completed').checked=false;document.getElementById('s-date').value=getKoreanDate();document.getElementById('s-time').value='';['s-content','s-price','s-memo'].forEach(id=>document.getElementById(id).value='');document.getElementById('file-before').value='';document.getElementById('file-after').value='';resetServicePhotoDeleteState();document.getElementById('btn-s-save').innerText='이력 저장';document.querySelector('input[name="s-vat"][value="부가세포함"]').checked=true;document.getElementById('s-biz-select').value='biz1';updateBizPreview();loadServiceItemsToForm([]);updateServiceCustomerOutstandingUI();updateServicePhotoUI();}
@@ -13704,6 +13760,7 @@ function openInChrome() {
     }
 })();
 </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
