@@ -2491,12 +2491,270 @@ function removeKakaoProgressToast() {
  *   - data 구조: shareDocToKakao에서 쓰는 것과 동일
  */
 function buildCaptureHtml(docType, data) {
-    // ── 사업자 정보 ──
     const bizKey = data.bizKey || 'biz1';
     const biz = (myBizInfo[bizKey] && myBizInfo[bizKey].bizName)
-        ? myBizInfo[bizKey]
-        : (myBizInfo.biz1 || {});
+        ? myBizInfo[bizKey] : (myBizInfo.biz1 || {});
 
+    const total   = Number(data.total || 0);
+    const vatType = data.vatType || 'included';
+
+    let supply = total, tax = 0;
+    if (vatType === 'included')  { supply = Math.round(total / 1.1); tax = total - supply; }
+    else if (vatType === 'excluded') { tax = Math.round(total * 0.1); supply = total; }
+
+    const sealHTML = biz.seal
+        ? `<img src="${biz.seal}" style="width:46px;height:46px;object-fit:contain;opacity:.9;vertical-align:middle;">`
+        : '';
+
+    const items  = (data.itemsArr || []).filter(it => String(it.name || '').trim());
+
+    const acctHTML = (data.account || '').trim()
+        ? `<div style="margin-top:10px;padding:9px 14px;border:1.5px solid #1a73e8;border-radius:8px;background:#f0f6ff;">
+               <div style="font-size:11px;font-weight:bold;color:#1a73e8;margin-bottom:3px;">💳 입금 계좌</div>
+               <div style="font-size:14px;font-weight:bold;color:#b71c1c;">${escapeHtml(data.account)}</div>
+           </div>` : '';
+
+    // ── 미수금 박스 ──
+    let unpaidBoxHTML = '';
+    if (data.unpaidCount > 0) {
+        const unpaidRows = (data.unpaidLines || '')
+            ? `<div style="font-size:10px;color:#555;white-space:pre-line;line-height:1.6;border-top:1px solid #ffcdd2;padding-top:4px;margin-top:4px;">${escapeHtml(data.unpaidLines)}</div>`
+            : '';
+        unpaidBoxHTML = `
+        <div style="margin-top:8px;border:1px solid #ef9a9a;border-radius:7px;padding:6px 10px;background:#fff8f8;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;flex-wrap:wrap;gap:4px;">
+                <span style="font-size:12px;font-weight:800;color:#c62828;">
+                    💳 기타 미수 내역 (${data.unpaidCount}건 · ${(data.unpaidTotal||0).toLocaleString()}원)
+                </span>
+                <span style="font-size:10px;padding:2px 8px;border-radius:6px;
+                             background:${data.currentUnpaid?'#ffebee':'#e8f5e9'};
+                             color:${data.currentUnpaid?'#c62828':'#2e7d32'};font-weight:bold;">
+                    이 문서: ${data.currentUnpaid?'미수금':'결제완료'}
+                </span>
+            </div>
+            ${unpaidRows}
+        </div>`;
+    } else if (data.currentUnpaid) {
+        unpaidBoxHTML = `
+        <div style="margin-top:8px;padding:7px 12px;border:1px solid #ffcdd2;border-radius:8px;background:#fff8f8;display:flex;align-items:center;gap:8px;">
+            <span>💳</span>
+            <span style="font-size:12px;font-weight:bold;color:#c62828;">이 문서는 미수금 상태입니다.</span>
+        </div>`;
+    }
+
+    // ── 미수 포함 합계 배너 ──
+    const grandTotal = total + (data.unpaidTotal || 0);
+    const unpaidBannerHTML = (data.unpaidTotal > 0)
+        ? `<div style="background:#c62828;color:#fff;display:flex;justify-content:space-between;align-items:center;padding:7px 16px;font-size:13px;font-weight:bold;border-top:1px solid rgba(255,255,255,.3);">
+               <span>💳 미수금 포함 합계</span>
+               <span style="font-size:16px;font-weight:900;">₩ ${grandTotal.toLocaleString()}
+                   <span style="font-size:10px;opacity:.8;margin-left:6px;">(미수 ${(data.unpaidTotal||0).toLocaleString()}원 포함)</span>
+               </span>
+           </div>` : '';
+
+    // ════════════════════════════════════════
+    // ★ 영수증 스타일
+    // ════════════════════════════════════════
+    if (docType === 'receipt') {
+        const accentColor = '#34a853';
+        let rows = '';
+        const rc = Math.max(items.length || 1, 1);
+        for (let i = 0; i < rc; i++) {
+            const it = items[i] || {};
+            const qty  = it.name ? (it.qty  || 1) : '';
+            const unit = it.name && it.price != null ? Number(it.price).toLocaleString() : '';
+            const amt  = it.name && it.amt  != null ? Number(it.amt).toLocaleString()   : '';
+            rows += `<tr>
+                <td style="border:1px solid #ddd;padding:5px 4px;text-align:center;">${it.name && i===0 ? String(data.date||'').slice(5).replace('-','/') : '\u3000'}</td>
+                <td style="border:1px solid #ddd;padding:5px 8px;text-align:left;">${escapeHtml(it.name||'')}${it.spec?` (${escapeHtml(it.spec)})`:''}</td>
+                <td style="border:1px solid #ddd;padding:5px 4px;text-align:center;">${qty}</td>
+                <td style="border:1px solid #ddd;padding:5px 6px;text-align:right;">${unit}</td>
+                <td style="border:1px solid #ddd;padding:5px 6px;text-align:right;">${amt}</td>
+            </tr>`;
+        }
+
+        return `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
+<style>
+@page{size:A4 portrait;margin:12mm}*{box-sizing:border-box}
+body{font-family:'Malgun Gothic','Dotum',sans-serif;font-size:13px;color:#111;background:#fff;margin:0;padding:16px 20px;width:900px;}
+.r-wrap{max-width:860px;margin:0 auto;}
+.r-header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:10px;}
+.r-header .no{font-size:14px;border-bottom:1px solid #000;padding:0 10px 3px;}
+.r-header .title{font-size:28px;font-weight:bold;letter-spacing:15px;text-align:center;}
+.r-header .title span{font-size:14px;font-weight:normal;letter-spacing:1px;}
+.r-header .receiver{font-size:16px;border-bottom:1px solid #000;padding:0 10px 3px;text-align:right;min-width:150px;}
+table.r-table{width:100%;border-collapse:collapse;text-align:center;font-size:13px;margin-bottom:6px;}
+table.r-table th,table.r-table td{border:1px solid #000;padding:7px 4px;}
+table.r-table th{background:#f9f9f9;}
+.v-th{width:28px;letter-spacing:5px;line-height:1.8;}
+.total-banner-main{background:${accentColor};color:#fff;display:flex;justify-content:space-between;align-items:center;padding:9px 16px;border-radius:6px 6px 0 0;font-size:14px;font-weight:bold;margin-top:8px;}
+.total-banner-unpaid{background:#c62828;color:#fff;display:flex;justify-content:space-between;align-items:center;padding:7px 16px;border-radius:0 0 6px 6px;font-size:13px;font-weight:bold;border-top:1px solid rgba(255,255,255,.3);}
+.t-num{font-size:20px;font-weight:900;}
+table.item-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px;}
+table.item-table th{background:#e8f5e9;border:1px solid #ccc;padding:7px 4px;text-align:center;font-weight:bold;}
+table.item-table tfoot td{background:#fafafa;font-weight:bold;}
+table.item-table tfoot tr:last-child td{background:#e8f5e9;border-top:2px solid ${accentColor};font-size:14px;font-weight:bold;}
+.biz-inline{display:flex;align-items:center;gap:6px;}
+html{print-color-adjust:exact;-webkit-print-color-adjust:exact;}
+</style></head><body>
+<div class="r-wrap">
+  <div class="r-header">
+    <div class="no">NO. ________</div>
+    <div class="title">영 수 증 <span>(공급받는자용)</span></div>
+    <div class="receiver"><b>${escapeHtml(data.receiver || data.name || '')}</b> 귀하</div>
+  </div>
+  <table class="r-table">
+    <tr><th rowspan="4" class="v-th">공<br>급<br>자</th><th>사업자등록번호</th><td colspan="3" style="font-weight:bold;">${escapeHtml(biz.bizNum||'')}</td></tr>
+    <tr><th>상 호</th><td>${escapeHtml(biz.bizName||'')}</td><th>성 명</th><td><div class="biz-inline"><span>${escapeHtml(biz.repName||'')}</span>${sealHTML}</div></td></tr>
+    <tr><th>사업장소재지</th><td colspan="3">${escapeHtml(biz.address||'')}${biz.tel?` (TEL:${biz.tel})`:''}</td></tr>
+    <tr><th>업 태</th><td>${escapeHtml(biz.bizType||'')}</td><th>종 목</th><td>${escapeHtml(biz.bizItem||'')}</td></tr>
+  </table>
+  <table class="r-table" style="margin-bottom:4px;">
+    <tr><th>작성년월일</th><th>비고</th></tr>
+    <tr><td>${escapeHtml(data.date||data.issueDate||'')}</td><td>${escapeHtml(data.note||'')}</td></tr>
+  </table>
+  <!-- 합계 배너 -->
+  <div class="total-banner-main">
+    <span>공급대가 (${vatType==='included'?'부가세포함':vatType==='excluded'?'부가세별도':'부가세없음'})</span>
+    <span class="t-num">₩ ${total.toLocaleString()}</span>
+  </div>
+  ${unpaidBannerHTML}
+  <!-- 품목 테이블 -->
+  <table class="item-table">
+    <thead><tr>
+      <th style="width:13%">월일</th><th style="width:35%">품 목</th>
+      <th style="width:10%">수량</th><th style="width:18%">단가</th><th style="width:24%">금액</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot>
+      <tr><th colspan="2">합 계</th><td colspan="3" style="text-align:right;padding-right:8px;font-size:15px;">₩ ${total.toLocaleString()}</td></tr>
+    </tfoot>
+  </table>
+  ${acctHTML}
+  ${unpaidBoxHTML}
+</div>
+</body></html>`;
+    }
+
+    // ════════════════════════════════════════
+    // ★ 거래명세서 스타일
+    // ════════════════════════════════════════
+    if (docType === 'statement') {
+        const accentColor = '#00897b';
+        let rows = '';
+        const rc = Math.max(items.length || 1, 1);
+        for (let i = 0; i < rc; i++) {
+            const it  = items[i] || {};
+            const qty  = it.name ? (it.qty  || 1) : '';
+            const unit = it.name && it.price != null ? Number(it.price).toLocaleString() : '';
+            const rSup = it.name && it.amt != null
+                ? (vatType==='included'?Math.round(Number(it.amt)/1.1):(vatType==='excluded'?Number(it.amt):Number(it.amt))) : '';
+            const rTax = it.name && it.amt != null
+                ? (vatType==='included'?Number(it.amt)-Math.round(Number(it.amt)/1.1):(vatType==='excluded'?Math.round(Number(it.amt)*0.1):0)) : '';
+            rows += `<tr>
+                <td style="border:1px solid #ddd;padding:5px 8px;text-align:left;">${escapeHtml(it.name||'')}${it.spec?` (${escapeHtml(it.spec)})`:''}</td>
+                <td style="border:1px solid #ddd;padding:5px 4px;text-align:center;"></td>
+                <td style="border:1px solid #ddd;padding:5px 4px;text-align:center;">${qty}</td>
+                <td style="border:1px solid #ddd;padding:5px 6px;text-align:right;">${unit}</td>
+                <td style="border:1px solid #ddd;padding:5px 6px;text-align:right;">${rSup!==''?Number(rSup).toLocaleString():''}</td>
+                <td style="border:1px solid #ddd;padding:5px 6px;text-align:right;">${rTax!==''?Number(rTax).toLocaleString():''}</td>
+            </tr>`;
+        }
+
+        return `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
+<style>
+@page{size:A4 portrait;margin:12mm}*{box-sizing:border-box}
+body{font-family:'Malgun Gothic','Dotum',sans-serif;font-size:13px;color:#111;background:#fff;margin:0;padding:16px 20px;width:900px;}
+.stmt-wrap{max-width:860px;margin:0 auto;}
+.stmt-title{font-size:28px;font-weight:bold;letter-spacing:8px;margin-bottom:10px;}
+.biz-inline{display:flex;align-items:center;gap:6px;}
+.total-banner-main{background:${accentColor};color:#fff;display:flex;justify-content:space-between;align-items:center;padding:9px 16px;border-radius:6px 6px 0 0;font-size:14px;font-weight:bold;margin:8px 0 0;}
+.total-banner-unpaid{background:#c62828;color:#fff;display:flex;justify-content:space-between;align-items:center;padding:7px 16px;border-radius:0 0 6px 6px;font-size:13px;font-weight:bold;border-top:1px solid rgba(255,255,255,.3);}
+.t-num{font-size:20px;font-weight:900;}
+table.item-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px;}
+table.item-table th{background:#e0f2f1;border:1px solid #ccc;padding:7px 4px;text-align:center;font-weight:bold;}
+table.item-table tfoot td{background:#fafafa;font-weight:bold;}
+table.item-table tfoot tr:last-child td{background:#e0f2f1;border-top:2px solid ${accentColor};font-size:14px;font-weight:bold;}
+html{print-color-adjust:exact;-webkit-print-color-adjust:exact;}
+</style></head><body>
+<div class="stmt-wrap">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+    <div class="stmt-title">거 래 명 세 서</div>
+    <table style="width:56%;border-collapse:collapse;font-size:12px;border:2px solid #000;text-align:center;">
+      <tr>
+        <th rowspan="5" style="width:28px;letter-spacing:5px;line-height:1.8;border:1px solid #000;background:#dcebf7;">공<br>급<br>자</th>
+        <th style="border:1px solid #000;background:#f9f9f9;">등록번호</th>
+        <td colspan="3" style="border:1px solid #000;font-weight:bold;">${escapeHtml(biz.bizNum||'')}</td>
+      </tr>
+      <tr>
+        <th style="border:1px solid #000;background:#f9f9f9;">상 호</th>
+        <td style="border:1px solid #000;">${escapeHtml(biz.bizName||'')}</td>
+        <th style="border:1px solid #000;background:#f9f9f9;">대표자</th>
+        <td style="border:1px solid #000;"><div class="biz-inline"><span>${escapeHtml(biz.repName||'')}</span>${sealHTML}</div></td>
+      </tr>
+      <tr>
+        <th style="border:1px solid #000;background:#f9f9f9;">주 소</th>
+        <td colspan="3" style="border:1px solid #000;">${escapeHtml(biz.address||'')}</td>
+      </tr>
+      <tr>
+        <th style="border:1px solid #000;background:#f9f9f9;">업 태</th>
+        <td style="border:1px solid #000;">${escapeHtml(biz.bizType||'')}</td>
+        <th style="border:1px solid #000;background:#f9f9f9;">종 목</th>
+        <td style="border:1px solid #000;">${escapeHtml(biz.bizItem||'')}</td>
+      </tr>
+      <tr>
+        <th style="border:1px solid #000;background:#f9f9f9;">전화번호</th>
+        <td colspan="3" style="border:1px solid #000;">${escapeHtml(biz.tel||biz.mobile||'')}</td>
+      </tr>
+    </table>
+  </div>
+  <!-- 작성일/수신처/비고 -->
+  <table style="width:100%;border-collapse:collapse;font-size:13px;text-align:center;margin-bottom:4px;">
+    <tr>
+      <th style="border:1px solid #000;background:#f9f9f9;width:12%;">작성일자</th>
+      <td style="border:1px solid #000;width:18%;">${escapeHtml(data.date||data.issueDate||'')}</td>
+      <th style="border:1px solid #000;background:#f9f9f9;width:12%;">공급받는자</th>
+      <td style="border:1px solid #000;width:20%;font-weight:bold;">${escapeHtml(data.receiver||data.name||'')}</td>
+      <th style="border:1px solid #000;background:#f9f9f9;width:12%;">비고</th>
+      <td style="border:1px solid #000;">${escapeHtml(data.note||'')}</td>
+    </tr>
+  </table>
+  <!-- 합계 배너 -->
+  <div class="total-banner-main">
+    <span>합계금액 (${vatType==='included'?'부가세포함':vatType==='excluded'?'부가세별도':'부가세없음'})</span>
+    <span class="t-num">₩ ${total.toLocaleString()}</span>
+  </div>
+  ${unpaidBannerHTML}
+  <!-- 품목 테이블 -->
+  <table class="item-table">
+    <thead><tr>
+      <th style="width:34%;">품명</th><th style="width:10%;">규격</th>
+      <th style="width:8%;">수량</th><th style="width:16%;">단가</th>
+      <th style="width:16%;">공급가액</th><th style="width:16%;">세액</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot>
+      <tr>
+        <td colspan="4" style="text-align:right;padding-right:8px;">합 계</td>
+        <td style="text-align:right;padding-right:8px;">${supply.toLocaleString()}</td>
+        <td style="text-align:right;padding-right:8px;">${tax.toLocaleString()}</td>
+      </tr>
+      <tr>
+        <td colspan="5" style="text-align:right;padding-right:8px;">총 청구금액</td>
+        <td style="text-align:right;padding-right:8px;">₩ ${total.toLocaleString()}</td>
+      </tr>
+    </tfoot>
+  </table>
+  ${acctHTML}
+  ${unpaidBoxHTML}
+</div>
+</body></html>`;
+    }
+
+    // ════════════════════════════════════════
+    // ★ 청구서 / 견적서 / 기타 (기존 방식)
+    // ════════════════════════════════════════
+    const accentColor = (docType === 'invoice') ? '#e65100' : '#e65100';
     const docTitleMap = {
         quote:     '견 &nbsp; 적 &nbsp; 서',
         invoice:   '청 &nbsp; 구 &nbsp; 서',
@@ -2504,24 +2762,8 @@ function buildCaptureHtml(docType, data) {
         receipt:   '영 &nbsp; 수 &nbsp; 증'
     };
 
-    const accentColor = (docType === 'receipt') ? '#34a853' : '#e65100';
-
-    const sealHTML = biz.seal
-        ? `<img src="${biz.seal}" style="width:46px;height:46px;object-fit:contain;opacity:.9;vertical-align:middle;">`
-        : '';
-
-    // ── 금액 계산 ──
-    const total   = Number(data.total || 0);
-    const vatType = data.vatType || 'included';
-    let supply = total, tax = 0;
-    if (vatType === 'included')  { supply = Math.round(total / 1.1); tax = total - supply; }
-    else if (vatType === 'excluded') { tax = Math.round(total * 0.1); supply = total; }
-
-    // ── 품목 행 ──
-    const items  = (data.itemsArr || []).filter(it => String(it.name || '').trim());
     const minRow = Math.max(items.length + 2, 8);
     let rowsHTML = '';
-
     if (items.length) {
         items.forEach((it, i) => {
             const qty   = Number(it.qty)   || 1;
@@ -2529,300 +2771,113 @@ function buildCaptureHtml(docType, data) {
             const amt   = Number(it.amt)   || qty * price;
             rowsHTML += `<tr>
                 <td>${i + 1}</td>
-                <td class="tl">${escapeHtml(it.name || '')}</td>
+                <td style="text-align:left;padding-left:8px;">${escapeHtml(it.name || '')}</td>
                 <td>${escapeHtml(it.spec || '')}</td>
-                <td class="tr">${qty.toLocaleString()}</td>
-                <td class="tr">${price ? price.toLocaleString() : ''}</td>
-                <td class="tr"><b>${amt.toLocaleString()}</b></td>
+                <td style="text-align:right;padding-right:6px;">${qty.toLocaleString()}</td>
+                <td style="text-align:right;padding-right:6px;">${price ? price.toLocaleString() : ''}</td>
+                <td style="text-align:right;padding-right:6px;"><b>${amt.toLocaleString()}</b></td>
             </tr>`;
         });
     } else {
         rowsHTML = `<tr>
             <td>1</td>
-            <td class="tl">${escapeHtml(data.title || '서비스')}</td>
+            <td style="text-align:left;padding-left:8px;">${escapeHtml(data.title || '서비스')}</td>
             <td></td>
-            <td class="tr">1</td>
-            <td class="tr">${total.toLocaleString()}</td>
-            <td class="tr"><b>${total.toLocaleString()}</b></td>
+            <td style="text-align:right;">1</td>
+            <td style="text-align:right;">${total.toLocaleString()}</td>
+            <td style="text-align:right;"><b>${total.toLocaleString()}</b></td>
         </tr>`;
     }
     for (let i = (items.length || 1); i < minRow; i++) {
         rowsHTML += `<tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
     }
 
-    // ── 계좌 ──
-    const acctHTML = (data.account || '').trim()
-        ? `<div style="margin-top:10px;padding:9px 14px;border:2px solid #1565c0;
-                       border-radius:8px;background:#f0f6ff;">
-               <div style="font-size:11px;font-weight:bold;color:#1565c0;margin-bottom:3px;">💳 입금 계좌</div>
-               <div style="font-size:14px;font-weight:bold;color:#b71c1c;">${escapeHtml(data.account)}</div>
-           </div>`
-        : '';
-
-    // ── 비고 ──
     const noteHTML = (data.note || '').trim()
-        ? `<div style="margin-top:8px;padding:8px 12px;border:1px solid #e0e0e0;
-                       border-radius:6px;background:#fafafa;font-size:12px;color:#555;">
-               <b>비고:</b> ${escapeHtml(data.note)}
-           </div>`
-        : '';
+        ? `<div style="margin-top:8px;padding:8px 12px;border:1px solid #e0e0e0;border-radius:6px;background:#fafafa;font-size:12px;color:#555;"><b>비고:</b> ${escapeHtml(data.note)}</div>` : '';
 
-    // ══════════════════════════════════════════════════════
-    // ★ printQuote 와 100% 동일한 스타일/구조 사용
-    //   — 인라인 스타일만, flexbox 없음, table 기반 2단
-    // ══════════════════════════════════════════════════════
-    return `<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8">
+    return `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
 <style>
-@page { size:A4 portrait; margin:12mm; }
-* { box-sizing:border-box; }
-body {
-    font-family:'Malgun Gothic','Dotum',sans-serif;
-    font-size:13px; color:#111;
-    background:#fff; margin:0; padding:16px 20px;
-    width:900px;
-}
-.q-wrap { max-width:860px; margin:0 auto; }
-
-/* ── 헤더 ── */
-.q-head {
-    width:100%; border-collapse:collapse;
-    border-bottom:3px solid ${accentColor};
-    margin-bottom:11px;
-}
-.q-head td { padding-bottom:7px; vertical-align:bottom; }
-.q-title-txt {
-    font-size:30px; font-weight:900;
-    letter-spacing:10px; color:${accentColor};
-}
-.q-head-right { text-align:right; font-size:12px; color:#555; white-space:nowrap; }
-
-/* ── 2단 당사자 테이블 ── */
-.q-parties {
-    width:100%; border-collapse:separate; border-spacing:8px 0;
-    margin-bottom:11px; table-layout:fixed;
-}
-.q-parties > tbody > tr > td { padding:0; vertical-align:top; width:50%; }
-.q-party-table {
-    width:100%; border-collapse:collapse;
-    font-size:12px; table-layout:fixed;
-}
-.q-party-table th, .q-party-table td {
-    border:1px solid #bbb; padding:6px 7px;
-    vertical-align:middle; overflow:hidden; word-break:break-all;
-}
-.q-party-table th {
-    background:#f5f5f5; width:68px; min-width:68px;
-    font-weight:bold; font-size:11px; text-align:center; white-space:nowrap;
-}
-.q-party-table td { font-size:12px; }
-.party-hd {
-    text-align:center; font-size:13px; font-weight:900;
-    letter-spacing:4px; padding:7px 5px;
-    width:auto !important; min-width:0 !important;
-}
-.party-hd-r { background:#e3f2fd; color:#0d47a1; }
-.party-hd-s { background:#fff3e0; color:#bf360c; }
-
-/* ── 합계 배너 ── */
-.q-total-banner {
-    width:100%; border-collapse:collapse; margin-bottom:9px;
-}
-.q-total-banner td {
-    background:${accentColor};
-    color:#fff; padding:10px 16px; border-radius:6px;
-    font-size:14px; font-weight:bold;
-}
-.q-total-inner {
-    width:100%; border-collapse:collapse;
-}
-.q-total-inner td { color:#fff; background:transparent; }
-.q-total-num { text-align:right; font-size:22px; font-weight:900; white-space:nowrap; }
-
-/* ── 품목 테이블 ── */
-.q-item-table {
-    width:100%; border-collapse:collapse;
-    font-size:13px; margin-bottom:9px; table-layout:fixed;
-}
-.q-item-table th {
-    background:#fff3e0; border:1px solid #ccc;
-    padding:7px 4px; text-align:center;
-}
-.q-item-table td { border:1px solid #ddd; padding:6px 4px; text-align:center; height:26px; }
-.tl { text-align:left !important; padding-left:8px !important; }
-.tr { text-align:right !important; padding-right:8px !important; }
-.q-foot-row td { background:#fafafa; }
-.q-foot-total td {
-    background:#fff3e0; border-top:2px solid ${accentColor} !important; font-weight:bold;
-}
-
-/* ── 도장 인라인 ── */
-.biz-inline { display:inline; }
-</style>
-</head>
-<body>
+@page{size:A4 portrait;margin:12mm}*{box-sizing:border-box}
+body{font-family:'Malgun Gothic','Dotum',sans-serif;font-size:13px;color:#111;background:#fff;margin:0;padding:16px 20px;width:900px;}
+.q-wrap{max-width:860px;margin:0 auto;}
+.q-head{width:100%;border-collapse:collapse;border-bottom:3px solid ${accentColor};margin-bottom:11px;}
+.q-head td{padding-bottom:7px;vertical-align:bottom;}
+.q-title-txt{font-size:30px;font-weight:900;letter-spacing:10px;color:${accentColor};}
+.q-head-right{text-align:right;font-size:12px;color:#555;white-space:nowrap;}
+.q-parties{width:100%;border-collapse:separate;border-spacing:8px 0;margin-bottom:11px;table-layout:fixed;}
+.q-parties>tbody>tr>td{padding:0;vertical-align:top;width:50%;}
+.q-party-table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;}
+.q-party-table th,.q-party-table td{border:1px solid #bbb;padding:6px 7px;vertical-align:middle;overflow:hidden;word-break:break-all;}
+.q-party-table th{background:#f5f5f5;width:64px;font-weight:bold;font-size:11px;text-align:center;white-space:nowrap;}
+.party-hd{text-align:center;font-size:13px;font-weight:900;letter-spacing:4px;padding:7px 5px;width:auto!important;min-width:0!important;}
+.party-hd-r{background:#e3f2fd;color:#0d47a1;}
+.party-hd-s{background:#fff3e0;color:#bf360c;}
+.q-total-banner-wrap{margin-bottom:9px;}
+.q-total-main{background:${accentColor};color:#fff;display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-radius:6px 6px 0 0;font-size:14px;font-weight:bold;}
+.q-total-unpaid{background:#c62828;color:#fff;display:flex;justify-content:space-between;align-items:center;padding:7px 16px;border-radius:0 0 6px 6px;font-size:13px;font-weight:bold;border-top:1px solid rgba(255,255,255,.3);}
+.q-total-main-norounded{background:${accentColor};color:#fff;display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-radius:6px;font-size:14px;font-weight:bold;}
+.q-total-num{font-size:22px;font-weight:900;white-space:nowrap;}
+.q-item-table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:9px;table-layout:fixed;}
+.q-item-table th{background:#fff3e0;border:1px solid #ccc;padding:7px 4px;text-align:center;}
+.q-item-table td{border:1px solid #ddd;padding:6px 4px;text-align:center;height:26px;}
+.q-foot-row td{background:#fafafa;}
+.q-foot-total td{background:#fff3e0;border-top:2px solid ${accentColor}!important;font-weight:bold;}
+html{print-color-adjust:exact;-webkit-print-color-adjust:exact;}
+</style></head><body>
 <div class="q-wrap">
-
-    <!-- 헤더 -->
-    <table class="q-head" style="width:100%;">
-        <tr>
-            <td class="q-title-txt">${docTitleMap[docType] || '문 서'}</td>
-            <td class="q-head-right">작성일자 : <b>${escapeHtml(data.date || data.issueDate || '')}</b></td>
-        </tr>
-    </table>
-
-    <!-- 2단: 공급받는자 + 공급자 -->
-    <table class="q-parties">
-        <tbody>
-            <tr>
-                <!-- 공급받는자 -->
-                <td>
-                    <table class="q-party-table">
-                        <tr>
-                            <th colspan="2" class="party-hd party-hd-r">공 급 받 는 자</th>
-                        </tr>
-                        <tr>
-                            <th>상호/성명</th>
-                            <td><b>${escapeHtml(data.receiver || data.name || '')}</b> 귀하</td>
-                        </tr>
-                        <tr>
-                            <th>연락처</th>
-                            <td>${escapeHtml(data.phone || '')}</td>
-                        </tr>
-                        <tr>
-                            <th>주소</th>
-                            <td style="font-size:11px;">${escapeHtml(data.receiverAddr || data.addr || '')}</td>
-                        </tr>
-                        <tr>
-                            <th>건&nbsp;&nbsp;&nbsp;명</th>
-                            <td>${escapeHtml(data.title || '')}</td>
-                        </tr>
-                        <tr>
-                            <th>&nbsp;</th>
-                            <td>&nbsp;</td>
-                        </tr>
-                    </table>
-                </td>
-
-                <!-- 공급자 -->
-                <td>
-                    <table class="q-party-table">
-                        <tr>
-                            <th colspan="2" class="party-hd party-hd-s">공 급 자</th>
-                        </tr>
-                        <tr>
-                            <th>등록번호</th>
-                            <td><b>${escapeHtml(data.bizNum || biz.bizNum || '')}</b></td>
-                        </tr>
-                        <tr>
-                            <th>상호/대표자</th>
-                            <td>
-                                <b>${escapeHtml(data.bizName || biz.bizName || '')}</b>
-                                &nbsp;${escapeHtml(data.repName || biz.repName || '')}
-                                ${sealHTML}
-                            </td>
-                        </tr>
-                        <tr>
-                            <th>주소</th>
-                            <td style="font-size:11px;">${escapeHtml(data.bizAddress || biz.address || '')}</td>
-                        </tr>
-                        <tr>
-                            <th>업태/종목</th>
-                            <td style="font-size:11px;">
-                                ${escapeHtml(data.bizType || biz.bizType || '')} /
-                                ${escapeHtml(data.bizItem || biz.bizItem || '')}
-                            </td>
-                        </tr>
-                        <tr>
-                            <th>전화</th>
-                            <td>${escapeHtml(data.bizTel || biz.tel || biz.mobile || '')}</td>
-                        </tr>
-                    </table>
-                </td>
-            </tr>
-        </tbody>
-    </table>
-
-    <!-- 합계 배너 -->
-    <table class="q-total-banner">
-        <tr>
-            <td>
-                <table class="q-total-inner">
-                    <tr>
-                        <td>합계금액
-                            (${vatType === 'included' ? '부가세포함' : vatType === 'excluded' ? '부가세별도' : '부가세없음'})
-                        </td>
-                        <td class="q-total-num">₩ ${total.toLocaleString()}</td>
-                    </tr>
-                </table>
-            </td>
-        </tr>
-    </table>
-
-    <!-- 품목 테이블 -->
-    <table class="q-item-table">
-        <colgroup>
-            <col style="width:6%"><col style="width:36%"><col style="width:12%">
-            <col style="width:10%"><col style="width:18%"><col style="width:18%">
-        </colgroup>
-        <thead>
-            <tr>
-                <th>No.</th>
-                <th class="tl">품명/내용</th>
-                <th>규격</th>
-                <th>수량</th>
-                <th class="tr">단가</th>
-                <th class="tr">금액</th>
-            </tr>
-        </thead>
-        <tbody>${rowsHTML}</tbody>
-        <tfoot>
-            <tr class="q-foot-row">
-                <td colspan="4" class="tr" style="font-weight:bold;">공급가액</td>
-                <td colspan="2" class="tr" style="font-weight:bold;">${supply.toLocaleString()}원</td>
-            </tr>
-            <tr class="q-foot-row">
-                <td colspan="4" class="tr" style="font-weight:bold;">부가세(10%)</td>
-                <td colspan="2" class="tr" style="font-weight:bold;">${tax.toLocaleString()}원</td>
-            </tr>
-            <tr class="q-foot-total">
-                <td colspan="4" class="tr" style="font-size:14px;">합계</td>
-                <td colspan="2" class="tr" style="font-size:16px;">₩ ${total.toLocaleString()}</td>
-            </tr>
-        </tfoot>
-    </table>
-
-    ${noteHTML}
-    ${acctHTML}
-
-    <!-- ★ 미수금 내역 (있는 경우만) -->
-    ${(data.unpaidCount > 0 || data.currentUnpaid) ? `
-    <div style="margin-top:8px;border:1px solid #ef9a9a;border-radius:7px;
-                padding:6px 10px;background:#fff8f8;font-size:11px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;
-                    margin-bottom:4px;flex-wrap:wrap;gap:4px;">
-            <span style="font-size:12px;font-weight:800;color:#c62828;">
-                💳 미수 내역 (${data.unpaidCount||0}건 · ${(data.unpaidTotal||0).toLocaleString()}원)
-            </span>
-            <span style="font-size:10px;padding:2px 8px;border-radius:6px;
-                         background:${data.currentUnpaid?'#ffebee':'#e8f5e9'};
-                         color:${data.currentUnpaid?'#c62828':'#2e7d32'};font-weight:bold;">
-                이 문서: ${data.currentUnpaid?'미수금':'결제완료'}
-            </span>
-        </div>
-        ${data.unpaidLines ? `<div style="font-size:10px;color:#555;
-                                          white-space:pre-line;line-height:1.6;
-                                          border-top:1px solid #ffcdd2;
-                                          padding-top:4px;margin-top:2px;">
-            ${escapeHtml(data.unpaidLines)}
-        </div>` : ''}
-    </div>` : ''}
-
+  <table class="q-head" style="width:100%;">
+    <tr>
+      <td class="q-title-txt">${docTitleMap[docType] || '문 서'}</td>
+      <td class="q-head-right">작성일자 : <b>${escapeHtml(data.date||data.issueDate||'')}</b></td>
+    </tr>
+  </table>
+  <table class="q-parties">
+    <tbody><tr>
+      <td>
+        <table class="q-party-table">
+          <tr><th colspan="2" class="party-hd party-hd-r">공 급 받 는 자</th></tr>
+          <tr><th>상호/성명</th><td><b>${escapeHtml(data.receiver||data.name||'')}</b> 귀하</td></tr>
+          <tr><th>연락처</th><td>${escapeHtml(data.phone||'')}</td></tr>
+          <tr><th>주소</th><td style="font-size:11px;">${escapeHtml(data.receiverAddr||data.addr||'')}</td></tr>
+          <tr><th>건&nbsp;&nbsp;&nbsp;명</th><td>${escapeHtml(data.title||'')}</td></tr>
+          <tr><th>&nbsp;</th><td>&nbsp;</td></tr>
+        </table>
+      </td>
+      <td>
+        <table class="q-party-table">
+          <tr><th colspan="2" class="party-hd party-hd-s">공 급 자</th></tr>
+          <tr><th>등록번호</th><td><b>${escapeHtml(data.bizNum||biz.bizNum||'')}</b></td></tr>
+          <tr><th>상호/대표자</th><td><b>${escapeHtml(data.bizName||biz.bizName||'')}</b> ${escapeHtml(data.repName||biz.repName||'')} ${sealHTML}</td></tr>
+          <tr><th>주소</th><td style="font-size:11px;">${escapeHtml(data.bizAddress||biz.address||'')}</td></tr>
+          <tr><th>업태/종목</th><td style="font-size:11px;">${escapeHtml(data.bizType||biz.bizType||'')} / ${escapeHtml(data.bizItem||biz.bizItem||'')}</td></tr>
+          <tr><th>전화</th><td>${escapeHtml(data.bizTel||biz.tel||biz.mobile||'')}</td></tr>
+        </table>
+      </td>
+    </tr></tbody>
+  </table>
+  <!-- 합계 배너 -->
+  <div class="q-total-banner-wrap">
+    <div class="${(data.unpaidTotal||0)>0?'q-total-main':'q-total-main-norounded'}">
+      <span>합계금액 (${vatType==='included'?'부가세포함':vatType==='excluded'?'부가세별도':'부가세없음'})</span>
+      <span class="q-total-num">₩ ${total.toLocaleString()}</span>
+    </div>
+    ${unpaidBannerHTML}
+  </div>
+  <table class="q-item-table">
+    <colgroup><col style="width:6%"><col style="width:36%"><col style="width:12%"><col style="width:10%"><col style="width:18%"><col style="width:18%"></colgroup>
+    <thead><tr><th>No.</th><th style="text-align:left;padding-left:8px;">품명/내용</th><th>규격</th><th>수량</th><th style="text-align:right;padding-right:6px;">단가</th><th style="text-align:right;padding-right:6px;">금액</th></tr></thead>
+    <tbody>${rowsHTML}</tbody>
+    <tfoot>
+      <tr class="q-foot-row"><td colspan="4" style="text-align:right;padding-right:6px;font-weight:bold;">공급가액</td><td colspan="2" style="text-align:right;padding-right:6px;font-weight:bold;">${supply.toLocaleString()}원</td></tr>
+      <tr class="q-foot-row"><td colspan="4" style="text-align:right;padding-right:6px;font-weight:bold;">부가세(10%)</td><td colspan="2" style="text-align:right;padding-right:6px;font-weight:bold;">${tax.toLocaleString()}원</td></tr>
+      <tr class="q-foot-total"><td colspan="4" style="text-align:right;padding-right:6px;font-size:14px;">합계</td><td colspan="2" style="text-align:right;padding-right:6px;font-size:16px;">₩ ${total.toLocaleString()}</td></tr>
+    </tfoot>
+  </table>
+  ${noteHTML}
+  ${acctHTML}
+  ${unpaidBoxHTML}
 </div>
-</body>
-</html>`;
+</body></html>`;
 }
 
 /**
@@ -8922,10 +8977,10 @@ function renderServices(){
                      ? myBizInfo[bk] : (myBizInfo.biz1 || {});
         const _items = getServiceDocumentItems(s);
 
-        // 미수금 내역 계산
+        // ★ 현재 출력 문서(ri) 제외한 나머지 미수 내역만 포함
         const _unpaidServices = (c.services || [])
             .map((sv, svIdx) => ({ ...sv, _svIdx: svIdx }))
-            .filter(sv => sv.isUnpaid === true);
+            .filter(sv => sv.isUnpaid === true && sv._svIdx !== ri);
         const _unpaidTotal = _unpaidServices.reduce((sum, sv) => sum + (Number(sv.price) || 0), 0);
         const _unpaidSummary = _unpaidServices.length
             ? `미수 ${_unpaidServices.length}건 · 합계 ${_unpaidTotal.toLocaleString()}원`
@@ -9215,77 +9270,280 @@ function openPrintWindow(serviceIdx,printType,titleOverride){
         ? `<div class="receipt-account-box"><div class="account-label">💳 입금 계좌</div>${accountLines.map(v=>`<div class="account-value">${escapeHtml(v)}</div>`).join('')}</div>`
         : '';
 
-    const unpaidServices=(c.services||[])
-        .map((service,idx)=>({...service,_idx:idx}))
-        .filter(service=>service&&service.isUnpaid===true)
+    // ★ 현재 출력 문서 제외한 나머지 미수 내역만 표시
+    const unpaidServices = (c.services || [])
+        .map((service, idx) => ({ ...service, _idx: idx }))
+        .filter(service => service && service.isUnpaid === true && service._idx !== serviceIdx)
         .sort((a,b)=>(a.date||'').localeCompare(b.date||''));
-    const unpaidTotal=unpaidServices.reduce((sum,service)=>sum+(Number(service.price)||0),0);
-    const currentDocStatus=s.isUnpaid===true?'미수':'결제완료';
-    const unpaidRows=unpaidServices.length
-        ? unpaidServices.map((service,idx)=>{
-            const itemsSummary=formatServiceItemsSummary(getServiceDocumentItems(service)||[]);
-            const contentText=(service.content||'').replace(/[\n,]+/g,' / ').trim();
-            const titleText=(itemsSummary||contentText||'서비스').slice(0,28)+(itemsSummary.length>28?'…':'');
-            const isCurrent=service._idx===serviceIdx;
-            return `<tr${isCurrent?' style="background:#fff9e6;"':''}>
-                <td>${idx+1}${isCurrent?'<span class="doc-unpaid-badge current" style="display:block;font-size:9px;">현문서</span>':''}</td>
-                <td>${escapeHtml(service.date||'-')}</td>
+
+    const unpaidTotal = unpaidServices.reduce(
+        (sum, service) => sum + (Number(service.price) || 0), 0
+    );
+
+    // 현재 문서 상태 배지
+    const currentDocStatus = s.isUnpaid === true ? '미수금' : '결제완료';
+    const currentDocBadgeStyle = s.isUnpaid === true
+        ? 'background:#ffebee;color:#c62828;'
+        : 'background:#e8f5e9;color:#2e7d32;';
+
+    // ★ 미수 내역이 없으면 박스 전체 숨김, 있을 때만 표시
+    let unpaidHTML = '';
+
+    if (unpaidServices.length > 0) {
+        // 현재 문서 제외한 다른 미수 내역이 있을 때
+        const unpaidRows = unpaidServices.map((service, idx) => {
+            const itemsSummary = formatServiceItemsSummary(
+                getServiceDocumentItems(service) || []
+            );
+            const contentText = (service.content || '').replace(/[\n,]+/g, ' / ').trim();
+            const titleText = (itemsSummary || contentText || '서비스')
+                .slice(0, 30) + ((itemsSummary || contentText || '').length > 30 ? '…' : '');
+            return `<tr>
+                <td>${idx + 1}</td>
+                <td>${escapeHtml(service.date || '-')}</td>
                 <td class="txt-left">${escapeHtml(titleText)}</td>
-                <td class="txt-right" style="color:#c62828;font-weight:bold;">${(Number(service.price)||0).toLocaleString()}원</td>
+                <td class="txt-right" style="color:#c62828;font-weight:bold;">
+                    ${(Number(service.price) || 0).toLocaleString()}원
+                </td>
             </tr>`;
-        }).join('')
-        : `<tr><td colspan="4" style="padding:5px;color:#2e7d32;font-weight:bold;font-size:11px;">✓ 미수 내역 없음</td></tr>`;
-    const unpaidHTML=`<div class="doc-unpaid-box ${unpaidServices.length?'':'empty'}">
-        <div class="doc-unpaid-head">
-            <span class="doc-unpaid-title">💳 미수 내역 (${unpaidServices.length}건 · ${unpaidTotal.toLocaleString()}원)</span>
-            <span style="font-size:10px;padding:2px 7px;border-radius:6px;background:${s.isUnpaid===true?'#ffebee':'#e8f5e9'};color:${s.isUnpaid===true?'#c62828':'#2e7d32'};font-weight:bold;">이 문서: ${currentDocStatus}</span>
-        </div>
-        <table class="doc-unpaid-table">
-            <thead><tr>
-                <th style="width:6%;">No</th>
-                <th style="width:16%;">일자</th>
-                <th>항목</th>
-                <th style="width:14%;">금액</th>
-            </tr></thead>
-            <tbody>${unpaidRows}</tbody>
-        </table>
-    </div>`;
+        }).join('');
+
+        unpaidHTML = `
+        <div class="doc-unpaid-box">
+            <div class="doc-unpaid-head">
+                <span class="doc-unpaid-title">
+                    💳 기타 미수 내역 (${unpaidServices.length}건 ·
+                    ${unpaidTotal.toLocaleString()}원)
+                </span>
+                <span style="font-size:10px;padding:2px 7px;border-radius:6px;
+                             font-weight:bold;${currentDocBadgeStyle}">
+                    이 문서: ${currentDocStatus}
+                </span>
+            </div>
+            <table class="doc-unpaid-table">
+                <thead>
+                    <tr>
+                        <th style="width:6%;">No</th>
+                        <th style="width:16%;">일자</th>
+                        <th>항목</th>
+                        <th style="width:14%;">금액</th>
+                    </tr>
+                </thead>
+                <tbody>${unpaidRows}</tbody>
+            </table>
+        </div>`;
+
+    } else if (s.isUnpaid === true) {
+        // 현재 문서만 미수금인 경우 → 간단한 상태 배지만 표시
+        unpaidHTML = `
+        <div style="margin-top:8px;padding:7px 12px;
+                    border:1px solid #ffcdd2;border-radius:8px;
+                    background:#fff8f8;
+                    display:flex;align-items:center;gap:8px;">
+            <span style="font-size:13px;">💳</span>
+            <span style="font-size:12px;font-weight:bold;color:#c62828;">
+                이 문서는 미수금 상태입니다.
+            </span>
+        </div>`;
+
+    }
+    // s.isUnpaid === false이고 다른 미수도 없으면 → unpaidHTML = '' (아무것도 표시 안 함)
     const items=getServiceDocumentItems(s);
     const p=Number(s.price)||0;
     const vs=s.vat||'부가세포함';
+
+    // ★ 미수금 합계 (위에서 선언된 unpaidServices / unpaidTotal 재사용)
+    const grandTotal=p+unpaidTotal; // 현재 문서 + 전체 미수금
+
+    // ★ 합계 배너 HTML (미수 포함)
+    const totalBannerHTML=`
+    <div class="total-banner-wrap">
+        <div class="total-banner-main">
+            <span>공급대가 (${vs})</span>
+            <span class="t-num">₩ ${p.toLocaleString()}</span>
+        </div>
+        ${unpaidTotal>0?`
+        <div class="total-banner-unpaid">
+            <span>💳 미수금 포함 합계</span>
+            <span class="t-num">₩ ${grandTotal.toLocaleString()}
+                <span style="font-size:11px;opacity:.8;margin-left:6px;">
+                    (미수 ${unpaidTotal.toLocaleString()}원 포함)
+                </span>
+            </span>
+        </div>`:''}
+    </div>`;
+
+    // ★ 하단 고정 박스 (매 페이지 반복)
+    const pageFooterHTML=`
+    <div class="page-footer">
+        ${accountHTML}
+        ${unpaidHTML}
+    </div>`;
+
     let html='';
 
     if(printType==='receipt'){
         let rows='';
-        const rc=Math.max(10,items.length||1);
+        // 품목이 없으면 최소 10줄, 있으면 실제 품목 수만큼
+        const rc=Math.max(items.length||1, 1);
         for(let i=0;i<rc;i++){
             const it=items[i]||{};
             const qty=it.name?(it.qty||1):'';
             const unit=it.name&&it.price!==''?Number(it.price).toLocaleString():'';
             const amt=it.name&&it.amt!==''?Number(it.amt).toLocaleString():'';
-            rows+=`<tr><td>${it.name&&i===0 ? String(s.date||'').slice(5).replace('-','/') : ''}</td><td class="txt-left">${it.name||''}${it.spec?` (${it.spec})`:''}</td><td>${qty}</td><td class="txt-right">${unit}</td><td class="txt-right">${amt}</td></tr>`;
+            rows+=`<tr><td>${it.name&&i===0?String(s.date||'').slice(5).replace('-','/'):'　'}</td><td class="txt-left">${it.name||''}${it.spec?` (${it.spec})`:''}</td><td>${qty}</td><td class="txt-right">${unit}</td><td class="txt-right">${amt}</td></tr>`;
         }
         const headerTitle=titleOverride
-            ? `<div class="title">${titleOverride}</div>`
-            : `<div class="title">영 수 증 <span>(공급받는자용)</span></div>`;
-        html=`<div class="r-wrap"><div class="r-header"><div class="no">NO. ________</div>${headerTitle}<div class="receiver"><b>${c.name}</b> 귀하</div></div><table class="r-table"><tr><th rowspan="4" class="v-th">공<br>급<br>자</th><th>사업자등록번호</th><td colspan="3" style="font-weight:bold;">${bizNum}</td></tr><tr><th>상 호</th><td>${bizName}</td><th>성 명</th><td><div class="biz-inline"><span>${repName||''}</span>${sealHTML}</div></td></tr><tr><th>사업장소재지</th><td colspan="3">${address}${tel?' (TEL:'+tel+')':''}</td></tr><tr><th>업 태</th><td>${bizType}</td><th>종 목</th><td>${bizItem}</td></tr></table><table class="r-table"><tr><th>작성년월일</th><th>공급대가총액</th><th>비고</th></tr><tr><td>${s.date}</td><td style="font-weight:bold;font-size:15px;">₩${p.toLocaleString()} (${vs})</td><td>${s.memo||''}</td></tr></table><table class="r-table"><tr><th style="width:15%">월일</th><th style="width:35%">품 목</th><th style="width:10%">수량</th><th style="width:15%">단가</th><th style="width:25%">금액</th></tr>${rows}<tr><th colspan="2">합 계</th><td colspan="3" class="txt-right" style="font-weight:bold;font-size:16px;">₩${p.toLocaleString()}</td></tr></table>${accountHTML}${unpaidHTML}</div>`;
+            ?`<div class="title">${titleOverride}</div>`
+            :`<div class="title">영 수 증 <span>(공급받는자용)</span></div>`;
+
+        html=`
+<div class="r-wrap">
+    <!-- 문서 헤더 -->
+    <div class="r-header">
+        <div class="no">NO. ________</div>
+        ${headerTitle}
+        <div class="receiver"><b>${c.name}</b> 귀하</div>
+    </div>
+
+    <!-- 공급자 정보 -->
+    <table class="r-table">
+        <tr><th rowspan="4" class="v-th">공<br>급<br>자</th><th>사업자등록번호</th><td colspan="3" style="font-weight:bold;">${bizNum}</td></tr>
+        <tr><th>상 호</th><td>${bizName}</td><th>성 명</th><td><div class="biz-inline"><span>${repName||''}</span>${sealHTML}</div></td></tr>
+        <tr><th>사업장소재지</th><td colspan="3">${address}${tel?' (TEL:'+tel+')':''}</td></tr>
+        <tr><th>업 태</th><td>${bizType}</td><th>종 목</th><td>${bizItem}</td></tr>
+    </table>
+
+    <!-- 작성일/합계 -->
+    <table class="r-table" style="margin-bottom:4px;">
+        <tr><th>작성년월일</th><th>비고</th></tr>
+        <tr><td>${s.date}</td><td>${s.memo||''}</td></tr>
+    </table>
+
+    <!-- ★ 합계 배너 (미수 포함) -->
+    ${totalBannerHTML}
+
+    <!-- 품목 테이블 (헤더 매 페이지 반복) -->
+    <table class="item-table">
+        <thead>
+            <tr>
+                <th style="width:13%">월일</th>
+                <th style="width:35%">품 목</th>
+                <th style="width:10%">수량</th>
+                <th style="width:17%">단가</th>
+                <th style="width:25%">금액</th>
+            </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+        <tfoot>
+            <tr><th colspan="2">합 계</th><td colspan="3" class="txt-right" style="font-size:15px;">₩ ${p.toLocaleString()}</td></tr>
+        </tfoot>
+    </table>
+
+    <!-- ★ 하단 (매 페이지 반복) -->
+    ${pageFooterHTML}
+</div>`;
     }else{
         let supply=p,tax=0;
-        if(vs==='부가세포함'){
-            supply=Math.round(p/1.1);
-            tax=p-supply;
-        }
+        if(vs==='부가세포함'){supply=Math.round(p/1.1);tax=p-supply;}
+        else if(vs==='부가세별도'){tax=Math.round(p*0.1);supply=p;}
+
         let rows='';
-        const rc=Math.max(15,items.length||1);
+        const rc=Math.max(items.length||1,1);
         for(let i=0;i<rc;i++){
             const it=items[i]||{};
             const qty=it.name?(it.qty||1):'';
             const unit=it.name&&it.price!==''?Number(it.price).toLocaleString():'';
-            const rowSupply=it.name&&it.amt!==''?(vs==='부가세포함'?Math.round(Number(it.amt)/1.1):Number(it.amt)):'';
-            const rowTax=it.name&&it.amt!==''?(vs==='부가세포함'?Number(it.amt)-Math.round(Number(it.amt)/1.1):0):'';
-            rows+=`<tr><td class="txt-left">${it.name||''}${it.spec?` (${it.spec})`:''}</td><td></td><td>${qty}</td><td class="txt-right">${unit}</td><td class="txt-right">${rowSupply!==''?Number(rowSupply).toLocaleString():''}</td><td class="txt-right">${rowTax!==''?Number(rowTax).toLocaleString():''}</td></tr>`;
+            const rowSupply=it.name&&it.amt!==''?(vs==='부가세포함'?Math.round(Number(it.amt)/1.1):(vs==='부가세별도'?Number(it.amt):Number(it.amt))):'';
+            const rowTax=it.name&&it.amt!==''?(vs==='부가세포함'?Number(it.amt)-Math.round(Number(it.amt)/1.1):(vs==='부가세별도'?Math.round(Number(it.amt)*0.1):0)):'';
+            rows+=`<tr>
+                <td class="txt-left">${it.name||''}${it.spec?` (${it.spec})`:''}</td>
+                <td></td>
+                <td>${qty}</td>
+                <td class="txt-right">${unit}</td>
+                <td class="txt-right">${rowSupply!==''?Number(rowSupply).toLocaleString():''}</td>
+                <td class="txt-right">${rowTax!==''?Number(rowTax).toLocaleString():''}</td>
+            </tr>`;
         }
-        html=`<div class="stmt-wrap"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;"><div style="font-size:30px;font-weight:bold;letter-spacing:8px;">거 래 명 세 서</div><table style="width:55%;border-collapse:collapse;font-size:12px;border:2px solid #000;text-align:center;"><tr><th rowspan="5" style="width:28px;letter-spacing:5px;line-height:1.8;border:1px solid #000;background:#dcebf7!important;-webkit-print-color-adjust:exact;">공<br>급<br>자</th><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;">등록번호</th><td colspan="3" style="border:1px solid #000;font-weight:bold;">${bizNum}</td></tr><tr><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;">상 호</th><td style="border:1px solid #000;">${bizName}</td><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;">대표자</th><td style="border:1px solid #000;"><div class="biz-inline"><span>${repName}</span>${sealHTML}</div></td></tr><tr><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;">주 소</th><td colspan="3" style="border:1px solid #000;">${address}</td></tr><tr><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;">업 태</th><td style="border:1px solid #000;">${bizType}</td><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;">종 목</th><td style="border:1px solid #000;">${bizItem}</td></tr><tr><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;">전화번호</th><td colspan="3" style="border:1px solid #000;">${tel||''}</td></tr></table></div><table style="width:100%;border-collapse:collapse;font-size:13px;text-align:center;margin-bottom:8px;"><tr><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;width:12%;">작성일자</th><td style="border:1px solid #000;width:18%;">${s.date}</td><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;width:12%;">공급받는자</th><td style="border:1px solid #000;width:20%;font-weight:bold;">${c.name}</td><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;width:12%;">비고</th><td style="border:1px solid #000;">${s.memo||''}</td></tr></table><table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center;"><thead><tr><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;width:34%;">품명</th><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;width:10%;">규격</th><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;width:8%;">수량</th><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;width:16%;">단가</th><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;width:16%;">공급가액</th><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;width:16%;">세액</th></tr></thead><tbody>${rows}<tr><th colspan="4" style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;">합계</th><td style="border:1px solid #000;font-weight:bold;">${supply.toLocaleString()}</td><td style="border:1px solid #000;font-weight:bold;">${tax.toLocaleString()}</td></tr></tbody></table><div style="margin-top:8px;text-align:right;font-weight:bold;font-size:16px;">총 청구금액 : ₩ ${p.toLocaleString()}</div>${accountHTML}${unpaidHTML}</div>`;
+
+        html=`
+<div class="stmt-wrap">
+    <!-- 헤더: 제목 + 공급자 -->
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+        <div style="font-size:28px;font-weight:bold;letter-spacing:8px;">거 래 명 세 서</div>
+        <table style="width:56%;border-collapse:collapse;font-size:12px;border:2px solid #000;text-align:center;">
+            <tr>
+                <th rowspan="5" style="width:28px;letter-spacing:5px;line-height:1.8;border:1px solid #000;background:#dcebf7!important;-webkit-print-color-adjust:exact;">공<br>급<br>자</th>
+                <th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;">등록번호</th>
+                <td colspan="3" style="border:1px solid #000;font-weight:bold;">${bizNum}</td>
+            </tr>
+            <tr>
+                <th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;">상 호</th>
+                <td style="border:1px solid #000;">${bizName}</td>
+                <th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;">대표자</th>
+                <td style="border:1px solid #000;"><div class="biz-inline"><span>${repName}</span>${sealHTML}</div></td>
+            </tr>
+            <tr>
+                <th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;">주 소</th>
+                <td colspan="3" style="border:1px solid #000;">${address}</td>
+            </tr>
+            <tr>
+                <th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;">업 태</th>
+                <td style="border:1px solid #000;">${bizType}</td>
+                <th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;">종 목</th>
+                <td style="border:1px solid #000;">${bizItem}</td>
+            </tr>
+            <tr>
+                <th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;">전화번호</th>
+                <td colspan="3" style="border:1px solid #000;">${tel||''}</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- 작성일/수신처/비고 -->
+    <table style="width:100%;border-collapse:collapse;font-size:13px;text-align:center;margin-bottom:6px;">
+        <tr>
+            <th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;width:12%;">작성일자</th>
+            <td style="border:1px solid #000;width:18%;">${s.date}</td>
+            <th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;width:12%;">공급받는자</th>
+            <td style="border:1px solid #000;width:20%;font-weight:bold;">${c.name}</td>
+            <th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;width:12%;">비고</th>
+            <td style="border:1px solid #000;">${s.memo||''}</td>
+        </tr>
+    </table>
+
+    <!-- ★ 합계 배너 (미수 포함) -->
+    ${totalBannerHTML}
+
+    <!-- 품목 테이블 (헤더 매 페이지 반복) -->
+    <table class="item-table" style="font-size:12px;">
+        <thead>
+            <tr>
+                <th style="width:34%;">품명</th>
+                <th style="width:10%;">규격</th>
+                <th style="width:8%;">수량</th>
+                <th style="width:16%;">단가</th>
+                <th style="width:16%;">공급가액</th>
+                <th style="width:16%;">세액</th>
+            </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+        <tfoot>
+            <tr>
+                <td colspan="4" class="txt-right" style="font-weight:bold;">합 계</td>
+                <td class="txt-right" style="font-weight:bold;">${supply.toLocaleString()}</td>
+                <td class="txt-right" style="font-weight:bold;">${tax.toLocaleString()}</td>
+            </tr>
+            <tr>
+                <td colspan="5" class="txt-right" style="font-size:14px;font-weight:bold;">총 청구금액</td>
+                <td class="txt-right" style="font-size:15px;font-weight:bold;">₩ ${p.toLocaleString()}</td>
+            </tr>
+        </tfoot>
+    </table>
+
+    <!-- ★ 하단 (매 페이지 반복) -->
+    ${pageFooterHTML}
+</div>`;
     }
 
     const pw=850,ph=980,l=Math.ceil((screen.width-pw)/2),t=Math.ceil((screen.height-ph)/2);
@@ -9294,25 +9552,143 @@ function openPrintWindow(serviceIdx,printType,titleOverride){
         alert('인쇄 창을 열 수 없습니다. 휴대폰에서는 팝업 허용 후 다시 시도해 주세요.');
         return;
     }
-    win.document.write(`<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=yes,viewport-fit=cover"><title>인쇄</title><style>@page{size:A4;margin:15mm;}body{font-family:'Malgun Gothic',sans-serif;color:#000;padding:20px;margin:0;}.r-wrap{max-width:750px;margin:0 auto;}.r-header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:10px;}.r-header .no{font-size:14px;border-bottom:1px solid #000;padding:0 10px 3px;}.r-header .title{font-size:28px;font-weight:bold;letter-spacing:15px;text-align:center;}.r-header .title span{font-size:14px;font-weight:normal;letter-spacing:1px;}.r-header .receiver{font-size:16px;border-bottom:1px solid #000;padding:0 10px 3px;text-align:right;min-width:150px;}table.r-table{width:100%;border-collapse:collapse;margin-top:-1px;text-align:center;font-size:13px;}table.r-table th,table.r-table td{border:1px solid #000;padding:8px 4px;}table.r-table th{background:#f9f9f9!important;-webkit-print-color-adjust:exact;font-weight:bold;}.v-th{width:28px;letter-spacing:5px;line-height:1.8;}.txt-left{text-align:left!important;padding-left:8px!important;}.txt-right{text-align:right!important;padding-right:8px!important;}.biz-inline{display:flex;align-items:center;justify-content:flex-start;gap:6px;}.seal-inline{width:46px;max-height:46px;object-fit:contain;opacity:.9;flex-shrink:0;}.receipt-account-box{margin-top:10px;border:1.5px solid #1a73e8;border-radius:8px;padding:9px 13px;background:#f0f6ff;}.account-label{font-weight:bold;color:#1a73e8;font-size:13px;margin-bottom:5px;}.account-value{font-size:14px;font-weight:bold;color:#b71c1c;line-height:1.7;}.doc-unpaid-box{margin-top:8px;border:1px solid #ef9a9a;border-radius:7px;padding:5px 8px;background:#fff8f8;}.doc-unpaid-box.empty{border-color:#a5d6a7;background:#f4fbf4;}.doc-unpaid-head{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap;}.doc-unpaid-title{font-size:12px;font-weight:800;color:#c62828;}.doc-unpaid-box.empty .doc-unpaid-title{color:#2e7d32;}.doc-unpaid-caption{font-size:11px;color:#666;margin-top:1px;}.doc-unpaid-summary{display:flex;gap:8px;flex-wrap:wrap;font-size:11px;font-weight:bold;color:#8d1f1f;}.doc-unpaid-box.empty .doc-unpaid-summary{color:#2e7d32;}.doc-unpaid-table{width:100%;border-collapse:collapse;font-size:11px;text-align:center;}.doc-unpaid-table th,.doc-unpaid-table td{border:1px solid #e0b4b4;padding:3px 4px;vertical-align:middle;}.doc-unpaid-box.empty .doc-unpaid-table th,.doc-unpaid-box.empty .doc-unpaid-table td{border-color:#b7d8b8;}.doc-unpaid-table th{background:#fdeaea!important;-webkit-print-color-adjust:exact;}.doc-unpaid-box.empty .doc-unpaid-table th{background:#e8f5e9!important;}.doc-unpaid-badge{display:inline-block;padding:1px 6px;border-radius:999px;font-size:10px;font-weight:700;line-height:1.3;}.doc-unpaid-badge.danger{background:#ffebee;color:#c62828;border:1px solid #ef9a9a;}.doc-unpaid-badge.current{background:#e3f2fd;color:#1565c0;border:1px solid #90caf9;margin-right:3px;}.doc-unpaid-sub{margin-top:2px;font-size:10px;color:#666;line-height:1.3;}html{-webkit-text-size-adjust:100%;print-color-adjust:exact;-webkit-print-color-adjust:exact;}img{max-width:100%;height:auto;}@media screen and (max-width:768px){@page{size:auto;margin:8mm;}body{padding:10px;font-size:12px;}.r-wrap,.stmt-wrap{max-width:100%;width:100%;}.r-header{flex-direction:column;align-items:stretch;gap:8px;}.r-header .title{font-size:22px;letter-spacing:6px;}.r-header .receiver,.r-header .no{min-width:0;text-align:left;}.stmt-wrap>div:first-child{flex-direction:column!important;gap:10px;}.stmt-wrap>div:first-child>table{width:100%!important;}.stmt-wrap table{table-layout:fixed;width:100%;}.stmt-wrap th,.stmt-wrap td,.r-table th,.r-table td,.doc-unpaid-table th,.doc-unpaid-table td{font-size:11px;padding:6px 4px;word-break:break-word;}.biz-inline{flex-wrap:wrap;}.seal-inline{width:34px;max-height:34px;}.doc-unpaid-head{flex-direction:column;}.doc-unpaid-summary{gap:6px;}}
-        .role-action-btn{display:none;align-items:center;gap:4px;}
-        .access-modal{display:none;position:fixed;inset:0;background:rgba(15,23,42,.52);z-index:100000;align-items:center;justify-content:center;padding:16px;}
-        .access-modal-card{width:min(760px,96vw);max-height:92vh;overflow:auto;background:#fff;border-radius:18px;box-shadow:0 18px 55px rgba(15,23,42,.28);padding:22px;}
-        .access-modal h3{margin:0 0 6px;color:#1a73e8;}
-        .access-modal p{margin:0;color:#667085;font-size:13px;}
-        .access-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:18px;}
-        .access-box{border:1px solid #e5e7eb;border-radius:12px;padding:14px;background:#fafbfc;}
-        .access-box h4{margin:0 0 10px;font-size:14px;color:#111827;}
-        .access-box label{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:13px;color:#374151;font-weight:500;}
-        .access-box input[type='checkbox']{width:auto;}
-        .pin-edit-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px;}
-        .pin-edit-row .form-item{background:#fafbfc;border:1px solid #e5e7eb;border-radius:12px;padding:12px;}
-        .modal-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:18px;}
-        .muted-help{font-size:12px;color:#6b7280;margin-top:8px;line-height:1.45;}
-        .readonly-lock{background:#f3f4f6 !important;cursor:not-allowed !important;}
-        @media(max-width:720px){.access-grid,.pin-edit-row{grid-template-columns:1fr;}}
+    win.document.write(`<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=yes,viewport-fit=cover"><title>인쇄</title><style>
+@page{size:A4 portrait;margin:15mm;}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;font-family:'Malgun Gothic',sans-serif;color:#000;font-size:13px;}
+body{padding:16px 20px;}
 
-    </style></head><body>${html}<script>(function(){var isMobile=/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)||window.innerWidth<=768;if(!isMobile){window.onload=function(){setTimeout(function(){(function(){ if(window.AndroidPrint){window.AndroidPrint.print();}else{window.print();} })();},300);};window.onafterprint=function(){window.close();};}})();<\/script></body></html>`);
+/* ── 영수증 래퍼 ── */
+.r-wrap{max-width:750px;margin:0 auto;}
+
+/* ── 헤더 ── */
+.r-header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:10px;}
+.r-header .no{font-size:14px;border-bottom:1px solid #000;padding:0 10px 3px;}
+.r-header .title{font-size:28px;font-weight:bold;letter-spacing:15px;text-align:center;}
+.r-header .title span{font-size:14px;font-weight:normal;letter-spacing:1px;}
+.r-header .receiver{font-size:16px;border-bottom:1px solid #000;padding:0 10px 3px;text-align:right;min-width:150px;}
+
+/* ── 공급자 테이블 ── */
+table.r-table{width:100%;border-collapse:collapse;margin-top:-1px;text-align:center;font-size:13px;}
+table.r-table th,table.r-table td{border:1px solid #000;padding:8px 4px;}
+table.r-table th{background:#f9f9f9!important;-webkit-print-color-adjust:exact;font-weight:bold;}
+.v-th{width:28px;letter-spacing:5px;line-height:1.8;}
+
+/* ── 합계 배너 (미수 포함) ── */
+.total-banner-wrap{margin:10px 0 8px;}
+.total-banner-main{background:#e65100!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;color:#fff;display:flex;justify-content:space-between;align-items:center;padding:9px 16px;border-radius:6px 6px 0 0;font-size:14px;font-weight:bold;}
+.total-banner-unpaid{background:#c62828!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;color:#fff;display:flex;justify-content:space-between;align-items:center;padding:7px 16px;border-radius:0 0 6px 6px;font-size:13px;font-weight:bold;border-top:1px solid rgba(255,255,255,.3);}
+.total-banner-main .t-num{font-size:20px;font-weight:900;}
+.total-banner-unpaid .t-num{font-size:16px;font-weight:900;}
+
+/* ── 품목 테이블 ── */
+.item-table-wrap{width:100%;}
+table.item-table{width:100%;border-collapse:collapse;font-size:13px;}
+table.item-table th{
+    background:#fff3e0!important;
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;
+    border:1px solid #ccc;padding:7px 4px;text-align:center;
+    font-weight:bold;
+}
+table.item-table td{border:1px solid #ddd;padding:6px 4px;text-align:center;height:26px;}
+.item-table tfoot td{background:#fafafa!important;font-weight:bold;}
+.item-table tfoot tr:last-child td{background:#fff3e0!important;-webkit-print-color-adjust:exact;border-top:2px solid #e65100!important;font-size:14px;font-weight:bold;}
+
+/* ── 거래명세서용 ── */
+.stmt-wrap{max-width:750px;margin:0 auto;}
+
+/* ── 공통 ── */
+.txt-left{text-align:left!important;padding-left:8px!important;}
+.txt-right{text-align:right!important;padding-right:8px!important;}
+.biz-inline{display:flex;align-items:center;justify-content:flex-start;gap:6px;}
+.seal-inline{width:46px;max-height:46px;object-fit:contain;opacity:.9;flex-shrink:0;}
+
+/* ── 입금 계좌 ── */
+.receipt-account-box{margin-top:10px;border:1.5px solid #1a73e8;border-radius:8px;padding:9px 13px;background:#f0f6ff;}
+.account-label{font-weight:bold;color:#1a73e8;font-size:13px;margin-bottom:5px;}
+.account-value{font-size:14px;font-weight:bold;color:#b71c1c;line-height:1.7;}
+
+/* ── 미수 내역 ── */
+.doc-unpaid-box{margin-top:8px;border:1px solid #ef9a9a;border-radius:7px;padding:5px 8px;background:#fff8f8;}
+.doc-unpaid-box.empty{border-color:#a5d6a7;background:#f4fbf4;}
+.doc-unpaid-head{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap;}
+.doc-unpaid-title{font-size:12px;font-weight:800;color:#c62828;}
+.doc-unpaid-box.empty .doc-unpaid-title{color:#2e7d32;}
+.doc-unpaid-table{width:100%;border-collapse:collapse;font-size:11px;text-align:center;}
+.doc-unpaid-table th,.doc-unpaid-table td{border:1px solid #e0b4b4;padding:3px 4px;vertical-align:middle;}
+.doc-unpaid-box.empty .doc-unpaid-table th,.doc-unpaid-box.empty .doc-unpaid-table td{border-color:#b7d8b8;}
+.doc-unpaid-table th{background:#fdeaea!important;-webkit-print-color-adjust:exact;}
+.doc-unpaid-box.empty .doc-unpaid-table th{background:#e8f5e9!important;}
+.doc-unpaid-badge{display:inline-block;padding:1px 6px;border-radius:999px;font-size:10px;font-weight:700;line-height:1.3;}
+.doc-unpaid-badge.current{background:#e3f2fd;color:#1565c0;border:1px solid #90caf9;margin-right:3px;}
+
+/* ── 하단 박스 (매 페이지 반복) ── */
+.page-footer{
+    margin-top:10px;
+}
+
+/* ── 인쇄 시 헤더/푸터 반복 ── */
+@media print{
+    html,body{margin:0;padding:0;}
+    body{padding:8px 12px;}
+
+    table.item-table{
+        border-collapse:collapse;
+    }
+
+    /* 품목 테이블 헤더 매 페이지 반복 */
+    table.item-table thead{
+        display:table-header-group;
+    }
+    table.item-table tfoot{
+        display:table-footer-group;
+    }
+
+    /* 페이지 나눔 방지 */
+    .r-header,.total-banner-wrap,.r-table-wrap{
+        page-break-inside:avoid;
+    }
+
+    /* 하단 박스 매 페이지 반복 */
+    .page-footer{
+        position:running(footer);
+    }
+
+    /* 공급자 정보 테이블 */
+    table.r-table thead{display:table-header-group;}
+}
+
+/* ── 모바일 ── */
+@media screen and (max-width:768px){
+    @page{size:auto;margin:8mm;}
+    body{padding:10px;font-size:12px;}
+    .r-wrap,.stmt-wrap{max-width:100%;width:100%;}
+    .r-header{flex-direction:column;align-items:stretch;gap:8px;}
+    .r-header .title{font-size:22px;letter-spacing:6px;}
+    .r-header .receiver,.r-header .no{min-width:0;text-align:left;}
+    table.r-table th,table.r-table td,
+    table.item-table th,table.item-table td,
+    .doc-unpaid-table th,.doc-unpaid-table td{font-size:11px;padding:5px 3px;word-break:break-word;}
+    .total-banner-main .t-num{font-size:17px;}
+    .total-banner-unpaid .t-num{font-size:14px;}
+    .biz-inline{flex-wrap:wrap;}
+    .seal-inline{width:34px;max-height:34px;}
+    .stmt-wrap>div:first-child{flex-direction:column!important;gap:10px;}
+    .stmt-wrap>div:first-child>table{width:100%!important;}
+    .stmt-wrap table{table-layout:fixed;width:100%;}
+}
+html{-webkit-text-size-adjust:100%;print-color-adjust:exact;-webkit-print-color-adjust:exact;}
+img{max-width:100%;height:auto;}
+</style></head><body>
+${html}
+<script>(function(){
+    var isMobile=/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)||window.innerWidth<=768;
+    if(!isMobile){
+        window.onload=function(){setTimeout(function(){(function(){ if(window.AndroidPrint){window.AndroidPrint.print();}else{window.print();} })();},300);};
+        window.onafterprint=function(){window.close();};
+    }
+})();<\/script></body></html>`);
     win.document.close();
 }
 
@@ -14131,6 +14507,9 @@ function openInChrome() {
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/vcd15cbe7772f49c399c6a5babf22c1241717689176015" integrity="sha512-ZpsOmlRQV6y907TI0dKBHq9Md29nnaEIPlkf84rnaERnq6zvWvPUqr2ft8M1aS28oN72PdrCzSjY4U6VaAw1EQ==" data-cf-beacon='{"rayId":"9fb18930984fe879","serverTiming":{"name":{"cfExtPri":true,"cfEdge":true,"cfOrigin":true,"cfL4":true,"cfSpeedBrain":true,"cfCacheStatus":true}},"version":"2025.9.1","token":"4edd5f8ec12a48cfa682ab8261b80a79"}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 </body>
 </html>
