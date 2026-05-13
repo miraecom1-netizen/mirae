@@ -2797,6 +2797,29 @@ body {
     ${noteHTML}
     ${acctHTML}
 
+    <!-- ★ 미수금 내역 (있는 경우만) -->
+    ${(data.unpaidCount > 0 || data.currentUnpaid) ? `
+    <div style="margin-top:8px;border:1px solid #ef9a9a;border-radius:7px;
+                padding:6px 10px;background:#fff8f8;font-size:11px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;
+                    margin-bottom:4px;flex-wrap:wrap;gap:4px;">
+            <span style="font-size:12px;font-weight:800;color:#c62828;">
+                💳 미수 내역 (${data.unpaidCount||0}건 · ${(data.unpaidTotal||0).toLocaleString()}원)
+            </span>
+            <span style="font-size:10px;padding:2px 8px;border-radius:6px;
+                         background:${data.currentUnpaid?'#ffebee':'#e8f5e9'};
+                         color:${data.currentUnpaid?'#c62828':'#2e7d32'};font-weight:bold;">
+                이 문서: ${data.currentUnpaid?'미수금':'결제완료'}
+            </span>
+        </div>
+        ${data.unpaidLines ? `<div style="font-size:10px;color:#555;
+                                          white-space:pre-line;line-height:1.6;
+                                          border-top:1px solid #ffcdd2;
+                                          padding-top:4px;margin-top:2px;">
+            ${escapeHtml(data.unpaidLines)}
+        </div>` : ''}
+    </div>` : ''}
+
 </div>
 </body>
 </html>`;
@@ -2894,14 +2917,21 @@ function _fallbackKakaoShare(docType, data) {
     const biz = (myBizInfo[data.bizKey || 'biz1'] && myBizInfo[data.bizKey || 'biz1'].bizName)
         ? myBizInfo[data.bizKey || 'biz1'] : (myBizInfo.biz1 || {});
 
+    const docLabel = docType === 'invoice' ? '청구서' : docType === 'statement' ? '거래명세서' : docType === 'receipt' ? '영수증' : '견적서';
+
     const text = [
-        `[${docType === 'invoice' ? '청구서' : docType === 'statement' ? '거래명세서' : docType === 'receipt' ? '영수증' : '견적서'}]`,
+        `[${docLabel}]`,
         `수신: ${data.receiver || data.name || '고객'} 귀중`,
         `금액: ₩${Number(data.total || 0).toLocaleString()}`,
         `날짜: ${data.date || data.issueDate || ''}`,
         `발신: ${data.bizName || biz.bizName || ''}`,
         data.account || biz.account1 ? `계좌: ${data.account || biz.account1 || ''}` : '',
-        biz.tel || biz.mobile ? `전화: ${biz.tel || biz.mobile || ''}` : ''
+        biz.tel || biz.mobile ? `전화: ${biz.tel || biz.mobile || ''}` : '',
+        // ★ 미수금 정보 추가
+        data.unpaidSummary ? `
+💳 미수 현황: ${data.unpaidSummary}` : '',
+        data.unpaidLines   ? data.unpaidLines : '',
+        data.currentUnpaid ? `※ 이 문서는 미수금 상태입니다.` : ''
     ].filter(Boolean).join('\n');
 
     navigator.clipboard.writeText(text)
@@ -7021,7 +7051,11 @@ function renderPopupSearchResult(kw){const m=getMatchedCustomers(kw.trim()?kw:''
 function onQuoteNameInput(rowId,val){
     activeQuoteRowId=rowId;quoteStockAcIdx=-1;
     const kw=val.toLowerCase().replace(/\s+/g,'');
-    const matched=stockItems.filter(s=>String(s.name||'').toLowerCase().replace(/\s+/g,'').includes(kw)||String(s.code||'').toLowerCase().replace(/\s+/g,'').includes(kw)||String(s.spec||'').toLowerCase().replace(/\s+/g,'').includes(kw)).slice(0,8);
+    const matched=stockItems.filter(s=>
+        String(s.name||'').toLowerCase().replace(/\s+/g,'').includes(kw)||
+        String(s.code||'').toLowerCase().replace(/\s+/g,'').includes(kw)||
+        String(s.spec||'').toLowerCase().replace(/\s+/g,'').includes(kw)
+    );
     closeQuoteStockAc();
     if(!kw||!matched.length){recalcQuote();return;}
     const wrap=document.getElementById(`qn-wrap-${rowId}`);if(!wrap)return;
@@ -7038,7 +7072,11 @@ function onServiceNameInput(rowId,val){
     const wrap=document.getElementById(`sn-wrap-${rowId}`);if(!wrap)return;
     closeQuoteStockAc();
     if(!kw)return;
-    const matched=stockItems.filter(x=>String(x.name||'').toLowerCase().replace(/\s+/g,'').includes(kw)).slice(0,8);
+    const matched=stockItems.filter(x=>
+        String(x.name||'').toLowerCase().replace(/\s+/g,'').includes(kw)||
+        String(x.code||'').toLowerCase().replace(/\s+/g,'').includes(kw)||
+        String(x.spec||'').toLowerCase().replace(/\s+/g,'').includes(kw)
+    );
     if(!matched.length)return;
     const box=document.createElement('div');box.className='quote-stock-ac service-stock-ac';box.id=`sn-ac-${rowId}`;
     matched.forEach((s,i)=>{const item=document.createElement('div');item.className='quote-stock-ac-item';item.setAttribute('data-idx',i);item.innerHTML=`<span class="qs-name">${s.name}${s.code?` <small style="color:#999;">[${s.code}]</small>`:''}</span><span class="qs-info">${s.spec||''} | ${Number(s.price||0).toLocaleString()}원</span>`;item.onmousedown=e=>e.preventDefault();item.onclick=()=>selectServiceStockItem(rowId,s.id);box.appendChild(item);});
@@ -8884,6 +8922,18 @@ function renderServices(){
                      ? myBizInfo[bk] : (myBizInfo.biz1 || {});
         const _items = getServiceDocumentItems(s);
 
+        // 미수금 내역 계산
+        const _unpaidServices = (c.services || [])
+            .map((sv, svIdx) => ({ ...sv, _svIdx: svIdx }))
+            .filter(sv => sv.isUnpaid === true);
+        const _unpaidTotal = _unpaidServices.reduce((sum, sv) => sum + (Number(sv.price) || 0), 0);
+        const _unpaidSummary = _unpaidServices.length
+            ? `미수 ${_unpaidServices.length}건 · 합계 ${_unpaidTotal.toLocaleString()}원`
+            : '';
+        const _unpaidLines = _unpaidServices.slice(0, 5).map((sv, i) =>
+            `${i+1}. ${sv.date||'-'} ${(sv.content||'').split('\n')[0].slice(0,20)} ${(Number(sv.price)||0).toLocaleString()}원`
+        ).join('\n');
+
         const _shareDataBase = {
             receiver:    c.name   || '',
             itemsArr:    _items,
@@ -8901,7 +8951,13 @@ function renderServices(){
             bizType:     _biz.bizType  || '',
             bizItem:     _biz.bizItem  || '',
             bizTel:      _biz.tel || _biz.mobile || '',
-            account:     _biz.account1 || ''
+            account:     _biz.account1 || '',
+            // ★ 미수금 정보 추가
+            unpaidSummary: _unpaidSummary,
+            unpaidLines:   _unpaidLines,
+            unpaidTotal:   _unpaidTotal,
+            unpaidCount:   _unpaidServices.length,
+            currentUnpaid: s.isUnpaid === true
         };
 
         // JSON 직렬화 (onclick에서 직접 사용하지 않고 data 속성으로 전달)
@@ -9169,45 +9225,31 @@ function openPrintWindow(serviceIdx,printType,titleOverride){
         ? unpaidServices.map((service,idx)=>{
             const itemsSummary=formatServiceItemsSummary(getServiceDocumentItems(service)||[]);
             const contentText=(service.content||'').replace(/[\n,]+/g,' / ').trim();
-            const memoText=(service.memo||'').replace(/[\n,]+/g,' / ').trim();
-            const titleText=itemsSummary||contentText||'서비스';
-            const badges=[];
-            if(service._idx===serviceIdx)badges.push('<span class="doc-unpaid-badge current">현재 문서</span>');
-            badges.push('<span class="doc-unpaid-badge danger">미수</span>');
-            return `<tr>
-                <td>${idx+1}</td>
+            const titleText=(itemsSummary||contentText||'서비스').slice(0,28)+(itemsSummary.length>28?'…':'');
+            const isCurrent=service._idx===serviceIdx;
+            return `<tr${isCurrent?' style="background:#fff9e6;"':''}>
+                <td>${idx+1}${isCurrent?'<span class="doc-unpaid-badge current" style="display:block;font-size:9px;">현문서</span>':''}</td>
                 <td>${escapeHtml(service.date||'-')}</td>
-                <td class="txt-left">${escapeHtml(titleText)}${memoText?`<div class="doc-unpaid-sub">비고: ${escapeHtml(memoText)}</div>`:''}</td>
-                <td>${badges.join(' ')}</td>
-                <td class="txt-right"><b>${(Number(service.price)||0).toLocaleString()}원</b></td>
+                <td class="txt-left">${escapeHtml(titleText)}</td>
+                <td class="txt-right" style="color:#c62828;font-weight:bold;">${(Number(service.price)||0).toLocaleString()}원</td>
             </tr>`;
         }).join('')
-        : `<tr><td colspan="5" style="padding:10px;color:#2e7d32;font-weight:bold;">현재 등록된 미수 내역이 없습니다.</td></tr>`;
+        : `<tr><td colspan="4" style="padding:5px;color:#2e7d32;font-weight:bold;font-size:11px;">✓ 미수 내역 없음</td></tr>`;
     const unpaidHTML=`<div class="doc-unpaid-box ${unpaidServices.length?'':'empty'}">
         <div class="doc-unpaid-head">
-            <div>
-                <div class="doc-unpaid-title">💳 미수 내역</div>
-                <div class="doc-unpaid-caption">현재 문서 결제상태: <b style="color:${s.isUnpaid===true?'#c62828':'#2e7d32'};">${currentDocStatus}</b></div>
-            </div>
-            <div class="doc-unpaid-summary">
-                <span>미수 ${unpaidServices.length}건</span>
-                <span>합계 <b>${unpaidTotal.toLocaleString()}원</b></span>
-            </div>
+            <span class="doc-unpaid-title">💳 미수 내역 (${unpaidServices.length}건 · ${unpaidTotal.toLocaleString()}원)</span>
+            <span style="font-size:10px;padding:2px 7px;border-radius:6px;background:${s.isUnpaid===true?'#ffebee':'#e8f5e9'};color:${s.isUnpaid===true?'#c62828':'#2e7d32'};font-weight:bold;">이 문서: ${currentDocStatus}</span>
         </div>
         <table class="doc-unpaid-table">
-            <thead>
-                <tr>
-                    <th style="width:8%;">No</th>
-                    <th style="width:18%;">일자</th>
-                    <th>미수 항목</th>
-                    <th style="width:18%;">상태</th>
-                    <th style="width:18%;">금액</th>
-                </tr>
-            </thead>
+            <thead><tr>
+                <th style="width:6%;">No</th>
+                <th style="width:16%;">일자</th>
+                <th>항목</th>
+                <th style="width:14%;">금액</th>
+            </tr></thead>
             <tbody>${unpaidRows}</tbody>
         </table>
     </div>`;
-
     const items=getServiceDocumentItems(s);
     const p=Number(s.price)||0;
     const vs=s.vat||'부가세포함';
@@ -9252,7 +9294,7 @@ function openPrintWindow(serviceIdx,printType,titleOverride){
         alert('인쇄 창을 열 수 없습니다. 휴대폰에서는 팝업 허용 후 다시 시도해 주세요.');
         return;
     }
-    win.document.write(`<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=yes,viewport-fit=cover"><title>인쇄</title><style>@page{size:A4;margin:15mm;}body{font-family:'Malgun Gothic',sans-serif;color:#000;padding:20px;margin:0;}.r-wrap{max-width:750px;margin:0 auto;}.r-header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:10px;}.r-header .no{font-size:14px;border-bottom:1px solid #000;padding:0 10px 3px;}.r-header .title{font-size:28px;font-weight:bold;letter-spacing:15px;text-align:center;}.r-header .title span{font-size:14px;font-weight:normal;letter-spacing:1px;}.r-header .receiver{font-size:16px;border-bottom:1px solid #000;padding:0 10px 3px;text-align:right;min-width:150px;}table.r-table{width:100%;border-collapse:collapse;margin-top:-1px;text-align:center;font-size:13px;}table.r-table th,table.r-table td{border:1px solid #000;padding:8px 4px;}table.r-table th{background:#f9f9f9!important;-webkit-print-color-adjust:exact;font-weight:bold;}.v-th{width:28px;letter-spacing:5px;line-height:1.8;}.txt-left{text-align:left!important;padding-left:8px!important;}.txt-right{text-align:right!important;padding-right:8px!important;}.biz-inline{display:flex;align-items:center;justify-content:flex-start;gap:6px;}.seal-inline{width:46px;max-height:46px;object-fit:contain;opacity:.9;flex-shrink:0;}.receipt-account-box{margin-top:10px;border:1.5px solid #1a73e8;border-radius:8px;padding:9px 13px;background:#f0f6ff;}.account-label{font-weight:bold;color:#1a73e8;font-size:13px;margin-bottom:5px;}.account-value{font-size:14px;font-weight:bold;color:#b71c1c;line-height:1.7;}.doc-unpaid-box{margin-top:12px;border:1.5px solid #ef9a9a;border-radius:10px;padding:10px 12px;background:#fff8f8;}.doc-unpaid-box.empty{border-color:#a5d6a7;background:#f4fbf4;}.doc-unpaid-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;}.doc-unpaid-title{font-size:14px;font-weight:900;color:#c62828;}.doc-unpaid-box.empty .doc-unpaid-title{color:#2e7d32;}.doc-unpaid-caption{font-size:12px;color:#666;margin-top:2px;}.doc-unpaid-summary{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;font-weight:bold;color:#8d1f1f;}.doc-unpaid-box.empty .doc-unpaid-summary{color:#2e7d32;}.doc-unpaid-table{width:100%;border-collapse:collapse;font-size:12px;text-align:center;}.doc-unpaid-table th,.doc-unpaid-table td{border:1px solid #e0b4b4;padding:6px 5px;vertical-align:top;}.doc-unpaid-box.empty .doc-unpaid-table th,.doc-unpaid-box.empty .doc-unpaid-table td{border-color:#b7d8b8;}.doc-unpaid-table th{background:#fdeaea!important;-webkit-print-color-adjust:exact;}.doc-unpaid-box.empty .doc-unpaid-table th{background:#e8f5e9!important;}.doc-unpaid-badge{display:inline-block;padding:2px 7px;border-radius:999px;font-size:11px;font-weight:700;line-height:1.4;}.doc-unpaid-badge.danger{background:#ffebee;color:#c62828;border:1px solid #ef9a9a;}.doc-unpaid-badge.current{background:#e3f2fd;color:#1565c0;border:1px solid #90caf9;margin-right:4px;}.doc-unpaid-sub{margin-top:4px;font-size:11px;color:#666;line-height:1.45;}html{-webkit-text-size-adjust:100%;print-color-adjust:exact;-webkit-print-color-adjust:exact;}img{max-width:100%;height:auto;}@media screen and (max-width:768px){@page{size:auto;margin:8mm;}body{padding:10px;font-size:12px;}.r-wrap,.stmt-wrap{max-width:100%;width:100%;}.r-header{flex-direction:column;align-items:stretch;gap:8px;}.r-header .title{font-size:22px;letter-spacing:6px;}.r-header .receiver,.r-header .no{min-width:0;text-align:left;}.stmt-wrap>div:first-child{flex-direction:column!important;gap:10px;}.stmt-wrap>div:first-child>table{width:100%!important;}.stmt-wrap table{table-layout:fixed;width:100%;}.stmt-wrap th,.stmt-wrap td,.r-table th,.r-table td,.doc-unpaid-table th,.doc-unpaid-table td{font-size:11px;padding:6px 4px;word-break:break-word;}.biz-inline{flex-wrap:wrap;}.seal-inline{width:34px;max-height:34px;}.doc-unpaid-head{flex-direction:column;}.doc-unpaid-summary{gap:6px;}}
+    win.document.write(`<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=yes,viewport-fit=cover"><title>인쇄</title><style>@page{size:A4;margin:15mm;}body{font-family:'Malgun Gothic',sans-serif;color:#000;padding:20px;margin:0;}.r-wrap{max-width:750px;margin:0 auto;}.r-header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:10px;}.r-header .no{font-size:14px;border-bottom:1px solid #000;padding:0 10px 3px;}.r-header .title{font-size:28px;font-weight:bold;letter-spacing:15px;text-align:center;}.r-header .title span{font-size:14px;font-weight:normal;letter-spacing:1px;}.r-header .receiver{font-size:16px;border-bottom:1px solid #000;padding:0 10px 3px;text-align:right;min-width:150px;}table.r-table{width:100%;border-collapse:collapse;margin-top:-1px;text-align:center;font-size:13px;}table.r-table th,table.r-table td{border:1px solid #000;padding:8px 4px;}table.r-table th{background:#f9f9f9!important;-webkit-print-color-adjust:exact;font-weight:bold;}.v-th{width:28px;letter-spacing:5px;line-height:1.8;}.txt-left{text-align:left!important;padding-left:8px!important;}.txt-right{text-align:right!important;padding-right:8px!important;}.biz-inline{display:flex;align-items:center;justify-content:flex-start;gap:6px;}.seal-inline{width:46px;max-height:46px;object-fit:contain;opacity:.9;flex-shrink:0;}.receipt-account-box{margin-top:10px;border:1.5px solid #1a73e8;border-radius:8px;padding:9px 13px;background:#f0f6ff;}.account-label{font-weight:bold;color:#1a73e8;font-size:13px;margin-bottom:5px;}.account-value{font-size:14px;font-weight:bold;color:#b71c1c;line-height:1.7;}.doc-unpaid-box{margin-top:8px;border:1px solid #ef9a9a;border-radius:7px;padding:5px 8px;background:#fff8f8;}.doc-unpaid-box.empty{border-color:#a5d6a7;background:#f4fbf4;}.doc-unpaid-head{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap;}.doc-unpaid-title{font-size:12px;font-weight:800;color:#c62828;}.doc-unpaid-box.empty .doc-unpaid-title{color:#2e7d32;}.doc-unpaid-caption{font-size:11px;color:#666;margin-top:1px;}.doc-unpaid-summary{display:flex;gap:8px;flex-wrap:wrap;font-size:11px;font-weight:bold;color:#8d1f1f;}.doc-unpaid-box.empty .doc-unpaid-summary{color:#2e7d32;}.doc-unpaid-table{width:100%;border-collapse:collapse;font-size:11px;text-align:center;}.doc-unpaid-table th,.doc-unpaid-table td{border:1px solid #e0b4b4;padding:3px 4px;vertical-align:middle;}.doc-unpaid-box.empty .doc-unpaid-table th,.doc-unpaid-box.empty .doc-unpaid-table td{border-color:#b7d8b8;}.doc-unpaid-table th{background:#fdeaea!important;-webkit-print-color-adjust:exact;}.doc-unpaid-box.empty .doc-unpaid-table th{background:#e8f5e9!important;}.doc-unpaid-badge{display:inline-block;padding:1px 6px;border-radius:999px;font-size:10px;font-weight:700;line-height:1.3;}.doc-unpaid-badge.danger{background:#ffebee;color:#c62828;border:1px solid #ef9a9a;}.doc-unpaid-badge.current{background:#e3f2fd;color:#1565c0;border:1px solid #90caf9;margin-right:3px;}.doc-unpaid-sub{margin-top:2px;font-size:10px;color:#666;line-height:1.3;}html{-webkit-text-size-adjust:100%;print-color-adjust:exact;-webkit-print-color-adjust:exact;}img{max-width:100%;height:auto;}@media screen and (max-width:768px){@page{size:auto;margin:8mm;}body{padding:10px;font-size:12px;}.r-wrap,.stmt-wrap{max-width:100%;width:100%;}.r-header{flex-direction:column;align-items:stretch;gap:8px;}.r-header .title{font-size:22px;letter-spacing:6px;}.r-header .receiver,.r-header .no{min-width:0;text-align:left;}.stmt-wrap>div:first-child{flex-direction:column!important;gap:10px;}.stmt-wrap>div:first-child>table{width:100%!important;}.stmt-wrap table{table-layout:fixed;width:100%;}.stmt-wrap th,.stmt-wrap td,.r-table th,.r-table td,.doc-unpaid-table th,.doc-unpaid-table td{font-size:11px;padding:6px 4px;word-break:break-word;}.biz-inline{flex-wrap:wrap;}.seal-inline{width:34px;max-height:34px;}.doc-unpaid-head{flex-direction:column;}.doc-unpaid-summary{gap:6px;}}
         .role-action-btn{display:none;align-items:center;gap:4px;}
         .access-modal{display:none;position:fixed;inset:0;background:rgba(15,23,42,.52);z-index:100000;align-items:center;justify-content:center;padding:16px;}
         .access-modal-card{width:min(760px,96vw);max-height:92vh;overflow:auto;background:#fff;border-radius:18px;box-shadow:0 18px 55px rgba(15,23,42,.28);padding:22px;}
@@ -14054,6 +14096,7 @@ function openInChrome() {
     }
 })();
 </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
