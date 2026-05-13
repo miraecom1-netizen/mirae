@@ -9143,35 +9143,116 @@ function printCustomerUnpaidBatch(){
    영수증/명세서 인쇄
 ═══════════════════════════════════════════ */
 function openPrintWindow(serviceIdx,printType,titleOverride){
-    const c=customers.find(i=>i.id==currentId);const s=c.services[serviceIdx];
-    const bk=s.bizKey||'biz1';const biz=(myBizInfo[bk]&&myBizInfo[bk].bizName)?myBizInfo[bk]:myBizInfo.biz1;
-    const{bizNum,bizName,repName,tel,address,bizType,bizItem}=biz;const sealHTML=biz.seal?`<img src="${biz.seal}" class="seal-inline">`:'';
-    // ★ 계좌정보 추가
+    const c=customers.find(i=>i.id==currentId);
+    if(!c||!Array.isArray(c.services)||!c.services[serviceIdx]){
+        alert('출력할 서비스 내역을 찾을 수 없습니다.');
+        return;
+    }
+    const s=c.services[serviceIdx];
+    const bk=s.bizKey||'biz1';
+    const biz=(myBizInfo[bk]&&myBizInfo[bk].bizName)?myBizInfo[bk]:myBizInfo.biz1;
+    const{bizNum,bizName,repName,tel,address,bizType,bizItem}=biz;
+    const sealHTML=biz.seal?`<img src="${biz.seal}" class="seal-inline">`:'';
+
     const accountLines=[biz.account1,biz.account2].filter(v=>(v||'').trim());
-    const accountHTML=accountLines.length?`<div class="receipt-account-box"><div class="account-label">💳 입금 계좌</div>${accountLines.map(v=>`<div class="account-value">${escapeHtml(v)}</div>`).join('')}</div>`:'';
+    const accountHTML=accountLines.length
+        ? `<div class="receipt-account-box"><div class="account-label">💳 입금 계좌</div>${accountLines.map(v=>`<div class="account-value">${escapeHtml(v)}</div>`).join('')}</div>`
+        : '';
+
+    const unpaidServices=(c.services||[])
+        .map((service,idx)=>({...service,_idx:idx}))
+        .filter(service=>service&&service.isUnpaid===true)
+        .sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+    const unpaidTotal=unpaidServices.reduce((sum,service)=>sum+(Number(service.price)||0),0);
+    const currentDocStatus=s.isUnpaid===true?'미수':'결제완료';
+    const unpaidRows=unpaidServices.length
+        ? unpaidServices.map((service,idx)=>{
+            const itemsSummary=formatServiceItemsSummary(getServiceDocumentItems(service)||[]);
+            const contentText=(service.content||'').replace(/[\n,]+/g,' / ').trim();
+            const memoText=(service.memo||'').replace(/[\n,]+/g,' / ').trim();
+            const titleText=itemsSummary||contentText||'서비스';
+            const badges=[];
+            if(service._idx===serviceIdx)badges.push('<span class="doc-unpaid-badge current">현재 문서</span>');
+            badges.push('<span class="doc-unpaid-badge danger">미수</span>');
+            return `<tr>
+                <td>${idx+1}</td>
+                <td>${escapeHtml(service.date||'-')}</td>
+                <td class="txt-left">${escapeHtml(titleText)}${memoText?`<div class="doc-unpaid-sub">비고: ${escapeHtml(memoText)}</div>`:''}</td>
+                <td>${badges.join(' ')}</td>
+                <td class="txt-right"><b>${(Number(service.price)||0).toLocaleString()}원</b></td>
+            </tr>`;
+        }).join('')
+        : `<tr><td colspan="5" style="padding:10px;color:#2e7d32;font-weight:bold;">현재 등록된 미수 내역이 없습니다.</td></tr>`;
+    const unpaidHTML=`<div class="doc-unpaid-box ${unpaidServices.length?'':'empty'}">
+        <div class="doc-unpaid-head">
+            <div>
+                <div class="doc-unpaid-title">💳 미수 내역</div>
+                <div class="doc-unpaid-caption">현재 문서 결제상태: <b style="color:${s.isUnpaid===true?'#c62828':'#2e7d32'};">${currentDocStatus}</b></div>
+            </div>
+            <div class="doc-unpaid-summary">
+                <span>미수 ${unpaidServices.length}건</span>
+                <span>합계 <b>${unpaidTotal.toLocaleString()}원</b></span>
+            </div>
+        </div>
+        <table class="doc-unpaid-table">
+            <thead>
+                <tr>
+                    <th style="width:8%;">No</th>
+                    <th style="width:18%;">일자</th>
+                    <th>미수 항목</th>
+                    <th style="width:18%;">상태</th>
+                    <th style="width:18%;">금액</th>
+                </tr>
+            </thead>
+            <tbody>${unpaidRows}</tbody>
+        </table>
+    </div>`;
+
     const items=getServiceDocumentItems(s);
-    const p=Number(s.price)||0;const vs=s.vat||'부가세포함';
+    const p=Number(s.price)||0;
+    const vs=s.vat||'부가세포함';
     let html='';
+
     if(printType==='receipt'){
-        let rows='';const rc=Math.max(10,items.length||1);
+        let rows='';
+        const rc=Math.max(10,items.length||1);
         for(let i=0;i<rc;i++){
-            const it=items[i]||{};const qty=it.name?(it.qty||1):'';const unit=it.name&&it.price!==''?Number(it.price).toLocaleString():'';const amt=it.name&&it.amt!==''?Number(it.amt).toLocaleString():'';
-            rows+=`<tr><td>${it.name&&i===0 ? s.date.slice(5).replace('-','/') : ''}</td><td class="txt-left">${it.name||''}${it.spec?` (${it.spec})`:''}</td><td>${qty}</td><td class="txt-right">${unit}</td><td class="txt-right">${amt}</td></tr>`;
+            const it=items[i]||{};
+            const qty=it.name?(it.qty||1):'';
+            const unit=it.name&&it.price!==''?Number(it.price).toLocaleString():'';
+            const amt=it.name&&it.amt!==''?Number(it.amt).toLocaleString():'';
+            rows+=`<tr><td>${it.name&&i===0 ? String(s.date||'').slice(5).replace('-','/') : ''}</td><td class="txt-left">${it.name||''}${it.spec?` (${it.spec})`:''}</td><td>${qty}</td><td class="txt-right">${unit}</td><td class="txt-right">${amt}</td></tr>`;
         }
-        const headerTitle=titleOverride?`<div class="title">${titleOverride}</div>`:`<div class="title">영 수 증 <span>(공급받는자용)</span></div>`;
-        html=`<div class="r-wrap"><div class="r-header"><div class="no">NO. ________</div>${headerTitle}<div class="receiver"><b>${c.name}</b> 귀하</div></div><table class="r-table"><tr><th rowspan="4" class="v-th">공<br>급<br>자</th><th>사업자등록번호</th><td colspan="3" style="font-weight:bold;">${bizNum}</td></tr><tr><th>상 호</th><td>${bizName}</td><th>성 명</th><td><div class="biz-inline"><span>${repName||''}</span>${sealHTML}</div></td></tr><tr><th>사업장소재지</th><td colspan="3">${address}${tel?' (TEL:'+tel+')':''}</td></tr><tr><th>업 태</th><td>${bizType}</td><th>종 목</th><td>${bizItem}</td></tr></table><table class="r-table"><tr><th>작성년월일</th><th>공급대가총액</th><th>비고</th></tr><tr><td>${s.date}</td><td style="font-weight:bold;font-size:15px;">₩${p.toLocaleString()} (${vs})</td><td>${s.memo||''}</td></tr></table><table class="r-table"><tr><th style="width:15%">월일</th><th style="width:35%">품 목</th><th style="width:10%">수량</th><th style="width:15%">단가</th><th style="width:25%">금액</th></tr>${rows}<tr><th colspan="2">합 계</th><td colspan="3" class="txt-right" style="font-weight:bold;font-size:16px;">₩${p.toLocaleString()}</td></tr></table>${accountHTML}</div>`;
+        const headerTitle=titleOverride
+            ? `<div class="title">${titleOverride}</div>`
+            : `<div class="title">영 수 증 <span>(공급받는자용)</span></div>`;
+        html=`<div class="r-wrap"><div class="r-header"><div class="no">NO. ________</div>${headerTitle}<div class="receiver"><b>${c.name}</b> 귀하</div></div><table class="r-table"><tr><th rowspan="4" class="v-th">공<br>급<br>자</th><th>사업자등록번호</th><td colspan="3" style="font-weight:bold;">${bizNum}</td></tr><tr><th>상 호</th><td>${bizName}</td><th>성 명</th><td><div class="biz-inline"><span>${repName||''}</span>${sealHTML}</div></td></tr><tr><th>사업장소재지</th><td colspan="3">${address}${tel?' (TEL:'+tel+')':''}</td></tr><tr><th>업 태</th><td>${bizType}</td><th>종 목</th><td>${bizItem}</td></tr></table><table class="r-table"><tr><th>작성년월일</th><th>공급대가총액</th><th>비고</th></tr><tr><td>${s.date}</td><td style="font-weight:bold;font-size:15px;">₩${p.toLocaleString()} (${vs})</td><td>${s.memo||''}</td></tr></table><table class="r-table"><tr><th style="width:15%">월일</th><th style="width:35%">품 목</th><th style="width:10%">수량</th><th style="width:15%">단가</th><th style="width:25%">금액</th></tr>${rows}<tr><th colspan="2">합 계</th><td colspan="3" class="txt-right" style="font-weight:bold;font-size:16px;">₩${p.toLocaleString()}</td></tr></table>${accountHTML}${unpaidHTML}</div>`;
     }else{
-        let supply=p,tax=0;if(vs==='부가세포함'){supply=Math.round(p/1.1);tax=p-supply;}
-        let rows='';const rc=Math.max(15,items.length||1);
+        let supply=p,tax=0;
+        if(vs==='부가세포함'){
+            supply=Math.round(p/1.1);
+            tax=p-supply;
+        }
+        let rows='';
+        const rc=Math.max(15,items.length||1);
         for(let i=0;i<rc;i++){
-            const it=items[i]||{};const qty=it.name?(it.qty||1):'';const unit=it.name&&it.price!==''?Number(it.price).toLocaleString():'';const amt=it.name&&it.amt!==''?Number(it.amt).toLocaleString():'';const rowSupply=it.name&&it.amt!==''?(vs==='부가세포함'?Math.round(Number(it.amt)/1.1):Number(it.amt)):'';const rowTax=it.name&&it.amt!==''?(vs==='부가세포함'?Number(it.amt)-Math.round(Number(it.amt)/1.1):0):'';
+            const it=items[i]||{};
+            const qty=it.name?(it.qty||1):'';
+            const unit=it.name&&it.price!==''?Number(it.price).toLocaleString():'';
+            const rowSupply=it.name&&it.amt!==''?(vs==='부가세포함'?Math.round(Number(it.amt)/1.1):Number(it.amt)):'';
+            const rowTax=it.name&&it.amt!==''?(vs==='부가세포함'?Number(it.amt)-Math.round(Number(it.amt)/1.1):0):'';
             rows+=`<tr><td class="txt-left">${it.name||''}${it.spec?` (${it.spec})`:''}</td><td></td><td>${qty}</td><td class="txt-right">${unit}</td><td class="txt-right">${rowSupply!==''?Number(rowSupply).toLocaleString():''}</td><td class="txt-right">${rowTax!==''?Number(rowTax).toLocaleString():''}</td></tr>`;
         }
-        html=`<div class="stmt-wrap"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;"><div style="font-size:30px;font-weight:bold;letter-spacing:8px;">거 래 명 세 서</div><table style="width:55%;border-collapse:collapse;font-size:12px;border:2px solid #000;text-align:center;"><tr><th rowspan="5" style="width:28px;letter-spacing:5px;line-height:1.8;border:1px solid #000;background:#dcebf7!important;-webkit-print-color-adjust:exact;">공<br>급<br>자</th><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;">등록번호</th><td colspan="3" style="border:1px solid #000;font-weight:bold;">${bizNum}</td></tr><tr><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;">상 호</th><td style="border:1px solid #000;">${bizName}</td><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;">대표자</th><td style="border:1px solid #000;"><div class="biz-inline"><span>${repName}</span>${sealHTML}</div></td></tr><tr><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;">주 소</th><td colspan="3" style="border:1px solid #000;">${address}</td></tr><tr><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;">업 태</th><td style="border:1px solid #000;">${bizType}</td><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;">종 목</th><td style="border:1px solid #000;">${bizItem}</td></tr><tr><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;">전화번호</th><td colspan="3" style="border:1px solid #000;">${tel||''}</td></tr></table></div><table style="width:100%;border-collapse:collapse;font-size:13px;text-align:center;margin-bottom:8px;"><tr><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;width:12%;">작성일자</th><td style="border:1px solid #000;width:18%;">${s.date}</td><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;width:12%;">공급받는자</th><td style="border:1px solid #000;width:20%;font-weight:bold;">${c.name}</td><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;width:12%;">비고</th><td style="border:1px solid #000;">${s.memo||''}</td></tr></table><table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center;"><thead><tr><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;width:34%;">품명</th><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;width:10%;">규격</th><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;width:8%;">수량</th><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;width:16%;">단가</th><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;width:16%;">공급가액</th><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;width:16%;">세액</th></tr></thead><tbody>${rows}<tr><th colspan="4" style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;">합계</th><td style="border:1px solid #000;font-weight:bold;">${supply.toLocaleString()}</td><td style="border:1px solid #000;font-weight:bold;">${tax.toLocaleString()}</td></tr></tbody></table><div style="margin-top:8px;text-align:right;font-weight:bold;font-size:16px;">총 청구금액 : ₩ ${p.toLocaleString()}</div>${accountHTML}</div>`;
+        html=`<div class="stmt-wrap"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;"><div style="font-size:30px;font-weight:bold;letter-spacing:8px;">거 래 명 세 서</div><table style="width:55%;border-collapse:collapse;font-size:12px;border:2px solid #000;text-align:center;"><tr><th rowspan="5" style="width:28px;letter-spacing:5px;line-height:1.8;border:1px solid #000;background:#dcebf7!important;-webkit-print-color-adjust:exact;">공<br>급<br>자</th><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;">등록번호</th><td colspan="3" style="border:1px solid #000;font-weight:bold;">${bizNum}</td></tr><tr><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;">상 호</th><td style="border:1px solid #000;">${bizName}</td><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;">대표자</th><td style="border:1px solid #000;"><div class="biz-inline"><span>${repName}</span>${sealHTML}</div></td></tr><tr><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;">주 소</th><td colspan="3" style="border:1px solid #000;">${address}</td></tr><tr><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;">업 태</th><td style="border:1px solid #000;">${bizType}</td><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;">종 목</th><td style="border:1px solid #000;">${bizItem}</td></tr><tr><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;">전화번호</th><td colspan="3" style="border:1px solid #000;">${tel||''}</td></tr></table></div><table style="width:100%;border-collapse:collapse;font-size:13px;text-align:center;margin-bottom:8px;"><tr><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;width:12%;">작성일자</th><td style="border:1px solid #000;width:18%;">${s.date}</td><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;width:12%;">공급받는자</th><td style="border:1px solid #000;width:20%;font-weight:bold;">${c.name}</td><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;width:12%;">비고</th><td style="border:1px solid #000;">${s.memo||''}</td></tr></table><table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center;"><thead><tr><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;width:34%;">품명</th><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;width:10%;">규격</th><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;width:8%;">수량</th><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;width:16%;">단가</th><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;width:16%;">공급가액</th><th style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;width:16%;">세액</th></tr></thead><tbody>${rows}<tr><th colspan="4" style="border:1px solid #000;background:#f9f9f9!important;-webkit-print-color-adjust:exact;">합계</th><td style="border:1px solid #000;font-weight:bold;">${supply.toLocaleString()}</td><td style="border:1px solid #000;font-weight:bold;">${tax.toLocaleString()}</td></tr></tbody></table><div style="margin-top:8px;text-align:right;font-weight:bold;font-size:16px;">총 청구금액 : ₩ ${p.toLocaleString()}</div>${accountHTML}${unpaidHTML}</div>`;
     }
-    const pw=850,ph=900,l=Math.ceil((screen.width-pw)/2),t=Math.ceil((screen.height-ph)/2);
-    const win=window.open('','_blank')||window.open('','pw',`width=${pw},height=${ph},left=${l},top=${t},scrollbars=yes,resizable=yes,toolbar=no`);if(!win){alert('인쇄 창을 열 수 없습니다. 휴대폰에서는 팝업 허용 후 다시 시도해 주세요.');return;}
-    win.document.write(`<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=yes,viewport-fit=cover"><title>인쇄</title><style>@page{size:A4;margin:15mm;}body{font-family:'Malgun Gothic',sans-serif;color:#000;padding:20px;margin:0;}.r-wrap{max-width:750px;margin:0 auto;}.r-header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:10px;}.r-header .no{font-size:14px;border-bottom:1px solid #000;padding:0 10px 3px;}.r-header .title{font-size:28px;font-weight:bold;letter-spacing:15px;text-align:center;}.r-header .title span{font-size:14px;font-weight:normal;letter-spacing:1px;}.r-header .receiver{font-size:16px;border-bottom:1px solid #000;padding:0 10px 3px;text-align:right;min-width:150px;}table.r-table{width:100%;border-collapse:collapse;margin-top:-1px;text-align:center;font-size:13px;}table.r-table th,table.r-table td{border:1px solid #000;padding:8px 4px;}table.r-table th{background:#f9f9f9!important;-webkit-print-color-adjust:exact;font-weight:bold;}.v-th{width:28px;letter-spacing:5px;line-height:1.8;}.txt-left{text-align:left!important;padding-left:8px!important;}.txt-right{text-align:right!important;padding-right:8px!important;}.biz-inline{display:flex;align-items:center;justify-content:flex-start;gap:6px;}.seal-inline{width:46px;max-height:46px;object-fit:contain;opacity:.9;flex-shrink:0;}.receipt-account-box{margin-top:10px;border:1.5px solid #1a73e8;border-radius:8px;padding:9px 13px;background:#f0f6ff;}.account-label{font-weight:bold;color:#1a73e8;font-size:13px;margin-bottom:5px;}.account-value{font-size:14px;font-weight:bold;color:#b71c1c;line-height:1.7;}html{-webkit-text-size-adjust:100%;print-color-adjust:exact;-webkit-print-color-adjust:exact;}img{max-width:100%;height:auto;}@media screen and (max-width:768px){@page{size:auto;margin:8mm;}body{padding:10px;font-size:12px;}.r-wrap,.stmt-wrap{max-width:100%;width:100%;}.r-header{flex-direction:column;align-items:stretch;gap:8px;}.r-header .title{font-size:22px;letter-spacing:6px;}.r-header .receiver,.r-header .no{min-width:0;text-align:left;}.stmt-wrap>div:first-child{flex-direction:column!important;gap:10px;}.stmt-wrap>div:first-child>table{width:100%!important;}.stmt-wrap table{table-layout:fixed;width:100%;}.stmt-wrap th,.stmt-wrap td,.r-table th,.r-table td{font-size:11px;padding:6px 4px;word-break:break-word;}.biz-inline{flex-wrap:wrap;}.seal-inline{width:34px;max-height:34px;}}
+
+    const pw=850,ph=980,l=Math.ceil((screen.width-pw)/2),t=Math.ceil((screen.height-ph)/2);
+    const win=window.open('','_blank')||window.open('','pw',`width=${pw},height=${ph},left=${l},top=${t},scrollbars=yes,resizable=yes,toolbar=no`);
+    if(!win){
+        alert('인쇄 창을 열 수 없습니다. 휴대폰에서는 팝업 허용 후 다시 시도해 주세요.');
+        return;
+    }
+    win.document.write(`<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=yes,viewport-fit=cover"><title>인쇄</title><style>@page{size:A4;margin:15mm;}body{font-family:'Malgun Gothic',sans-serif;color:#000;padding:20px;margin:0;}.r-wrap{max-width:750px;margin:0 auto;}.r-header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:10px;}.r-header .no{font-size:14px;border-bottom:1px solid #000;padding:0 10px 3px;}.r-header .title{font-size:28px;font-weight:bold;letter-spacing:15px;text-align:center;}.r-header .title span{font-size:14px;font-weight:normal;letter-spacing:1px;}.r-header .receiver{font-size:16px;border-bottom:1px solid #000;padding:0 10px 3px;text-align:right;min-width:150px;}table.r-table{width:100%;border-collapse:collapse;margin-top:-1px;text-align:center;font-size:13px;}table.r-table th,table.r-table td{border:1px solid #000;padding:8px 4px;}table.r-table th{background:#f9f9f9!important;-webkit-print-color-adjust:exact;font-weight:bold;}.v-th{width:28px;letter-spacing:5px;line-height:1.8;}.txt-left{text-align:left!important;padding-left:8px!important;}.txt-right{text-align:right!important;padding-right:8px!important;}.biz-inline{display:flex;align-items:center;justify-content:flex-start;gap:6px;}.seal-inline{width:46px;max-height:46px;object-fit:contain;opacity:.9;flex-shrink:0;}.receipt-account-box{margin-top:10px;border:1.5px solid #1a73e8;border-radius:8px;padding:9px 13px;background:#f0f6ff;}.account-label{font-weight:bold;color:#1a73e8;font-size:13px;margin-bottom:5px;}.account-value{font-size:14px;font-weight:bold;color:#b71c1c;line-height:1.7;}.doc-unpaid-box{margin-top:12px;border:1.5px solid #ef9a9a;border-radius:10px;padding:10px 12px;background:#fff8f8;}.doc-unpaid-box.empty{border-color:#a5d6a7;background:#f4fbf4;}.doc-unpaid-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;}.doc-unpaid-title{font-size:14px;font-weight:900;color:#c62828;}.doc-unpaid-box.empty .doc-unpaid-title{color:#2e7d32;}.doc-unpaid-caption{font-size:12px;color:#666;margin-top:2px;}.doc-unpaid-summary{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;font-weight:bold;color:#8d1f1f;}.doc-unpaid-box.empty .doc-unpaid-summary{color:#2e7d32;}.doc-unpaid-table{width:100%;border-collapse:collapse;font-size:12px;text-align:center;}.doc-unpaid-table th,.doc-unpaid-table td{border:1px solid #e0b4b4;padding:6px 5px;vertical-align:top;}.doc-unpaid-box.empty .doc-unpaid-table th,.doc-unpaid-box.empty .doc-unpaid-table td{border-color:#b7d8b8;}.doc-unpaid-table th{background:#fdeaea!important;-webkit-print-color-adjust:exact;}.doc-unpaid-box.empty .doc-unpaid-table th{background:#e8f5e9!important;}.doc-unpaid-badge{display:inline-block;padding:2px 7px;border-radius:999px;font-size:11px;font-weight:700;line-height:1.4;}.doc-unpaid-badge.danger{background:#ffebee;color:#c62828;border:1px solid #ef9a9a;}.doc-unpaid-badge.current{background:#e3f2fd;color:#1565c0;border:1px solid #90caf9;margin-right:4px;}.doc-unpaid-sub{margin-top:4px;font-size:11px;color:#666;line-height:1.45;}html{-webkit-text-size-adjust:100%;print-color-adjust:exact;-webkit-print-color-adjust:exact;}img{max-width:100%;height:auto;}@media screen and (max-width:768px){@page{size:auto;margin:8mm;}body{padding:10px;font-size:12px;}.r-wrap,.stmt-wrap{max-width:100%;width:100%;}.r-header{flex-direction:column;align-items:stretch;gap:8px;}.r-header .title{font-size:22px;letter-spacing:6px;}.r-header .receiver,.r-header .no{min-width:0;text-align:left;}.stmt-wrap>div:first-child{flex-direction:column!important;gap:10px;}.stmt-wrap>div:first-child>table{width:100%!important;}.stmt-wrap table{table-layout:fixed;width:100%;}.stmt-wrap th,.stmt-wrap td,.r-table th,.r-table td,.doc-unpaid-table th,.doc-unpaid-table td{font-size:11px;padding:6px 4px;word-break:break-word;}.biz-inline{flex-wrap:wrap;}.seal-inline{width:34px;max-height:34px;}.doc-unpaid-head{flex-direction:column;}.doc-unpaid-summary{gap:6px;}}
         .role-action-btn{display:none;align-items:center;gap:4px;}
         .access-modal{display:none;position:fixed;inset:0;background:rgba(15,23,42,.52);z-index:100000;align-items:center;justify-content:center;padding:16px;}
         .access-modal-card{width:min(760px,96vw);max-height:92vh;overflow:auto;background:#fff;border-radius:18px;box-shadow:0 18px 55px rgba(15,23,42,.28);padding:22px;}
@@ -9192,6 +9273,7 @@ function openPrintWindow(serviceIdx,printType,titleOverride){
     </style></head><body>${html}<script>(function(){var isMobile=/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)||window.innerWidth<=768;if(!isMobile){window.onload=function(){setTimeout(function(){(function(){ if(window.AndroidPrint){window.AndroidPrint.print();}else{window.print();} })();},300);};window.onafterprint=function(){window.close();};}})();<\/script></body></html>`);
     win.document.close();
 }
+
 
 /* ═══════════════════════════════════════════
    달력
@@ -13972,6 +14054,7 @@ function openInChrome() {
     }
 })();
 </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
