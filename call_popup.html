@@ -23,6 +23,10 @@ body {
     align-items: flex-start;
     padding: 16px;
     background: rgba(0,0,0,.35);
+    transition: background .25s ease;
+}
+body.closed {
+    background: #f5f5f5;
 }
 
 @keyframes alarmPop {
@@ -113,6 +117,28 @@ const CUSTOMER_FB_KEY    = 'crm_customer_firebase_v1';
 // → 같은 폴더에 있는 index.html을 가리킴. 필요 시 절대경로로 변경하세요.
 const MAIN_CRM_URL = 'index.html';
 
+/* ══ 공통: 팝업 닫기 함수 ══
+   - window.close()는 JS로 연 창만 닫을 수 있으므로
+     Tasker가 직접 열었을 때는 실패함.
+   - 그래서 화면을 증을 비우고 "닫힌 상태" UI로 바꾸고
+     동시에 window.close()도 시도함. 성공하면 그대로 닫히고,
+     실패해도 CRM이 보이지 않아 깨끗하게 유지됨. */
+function closePopup() {
+    document.body.classList.add('closed');
+    document.getElementById('popup').innerHTML = `
+        <div style="text-align:center;padding:30px 20px;color:#999;">
+            <div style="font-size:32px;margin-bottom:10px;opacity:.5;">✔️</div>
+            <div style="font-size:13px;">팝업이 닫혔습니다</div>
+            <div style="font-size:11px;margin-top:6px;opacity:.7;">
+                이 탭은 수동으로 닫아주세요
+            </div>
+        </div>`;
+    // window.close() 시도 (열린 창이면 성공)
+    setTimeout(() => {
+        try { window.close(); } catch(e) {}
+    }, 50);
+}
+
 // 알람 소리 (메인 CRM과 동일한 톤)
 function playAlarmSound() {
     try {
@@ -180,8 +206,8 @@ let incomingNum = '';
         renderPopup(incomingNum, matched);
         playAlarmSound();
 
-        // 60초 후 자동 닫기 (창)
-        setTimeout(() => window.close(), 60000);
+        // 60초 후 자동 닫기
+        setTimeout(() => closePopup(), 60000);
 
     } catch (err) {
         console.error(err);
@@ -236,7 +262,7 @@ function showError(msg, showRetry) {
             ${showRetry ? `
                 <a href="${MAIN_CRM_URL}" class="btn">🏠 메인 CRM 열기</a>
             ` : ''}
-            <button onclick="window.close()" class="btn"
+            <button onclick="closePopup()" class="btn"
                 style="background:#999; margin-left:6px;">닫기</button>
         </div>`;
 }
@@ -269,7 +295,7 @@ function renderPopup(phoneNum, customer) {
                     ${escapeHtml(phoneNum)}
                 </div>
             </div>
-            <button onclick="window.close()"
+            <button onclick="closePopup()"
                 style="background:rgba(255,255,255,.2);color:white;
                        border:none;border-radius:8px;
                        padding:5px 10px;cursor:pointer;
@@ -336,7 +362,7 @@ function renderPopup(phoneNum, customer) {
                            font-size:14px;font-weight:bold;cursor:pointer;">
                     📋 상세 보기
                 </button>
-                <button onclick="window.close()"
+                <button onclick="closePopup()"
                     style="flex:1;padding:13px;background:#f5f5f5;
                            color:#555;border:1px solid #ddd;
                            border-radius:12px;font-size:13px;
@@ -357,7 +383,7 @@ function renderPopup(phoneNum, customer) {
                     ${escapeHtml(phoneNum)}
                 </div>
             </div>
-            <button onclick="window.close()"
+            <button onclick="closePopup()"
                 style="background:rgba(255,255,255,.2);color:white;
                        border:none;border-radius:8px;
                        padding:5px 10px;cursor:pointer;
@@ -390,7 +416,7 @@ function renderPopup(phoneNum, customer) {
                 ➕ 신규 고객으로 등록하기
             </button>
 
-            <button onclick="window.close()"
+            <button onclick="closePopup()"
                 style="width:100%;padding:11px;background:#f5f5f5;
                        color:#555;border:1px solid #ddd;
                        border-radius:12px;font-size:13px;
@@ -403,16 +429,15 @@ function renderPopup(phoneNum, customer) {
 function openDetail(customerId) {
     const url = MAIN_CRM_URL +
         '?show_detail=' + encodeURIComponent(customerId);
-    window.open(url, '_blank');
-    setTimeout(() => window.close(), 300);
+    // 현재 탭에서 CRM을 열기 (새 탭 아닌 현재 탭 교체)
+    window.location.href = url;
 }
 
 // ───── 고객 등록: 메인 CRM 열기 ─────
 function openRegister() {
     const url = MAIN_CRM_URL +
         '?register_phone=' + encodeURIComponent(incomingNum);
-    window.open(url, '_blank');
-    setTimeout(() => window.close(), 300);
+    window.location.href = url;
 }
 </script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
