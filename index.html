@@ -5561,6 +5561,91 @@ function isAdmin()      { return currentUserRole === 'admin'
                               || currentUserRole === 'superadmin'; }
 function isStaff()      { return currentUserRole === 'staff'; }
 
+// ── 로그인 성공 시 오늘 날짜 + 역할 저장 ──
+function saveLoginSession(role, accountId) {
+    const today = getKoreanDate(); // "YYYY-MM-DD"
+    localStorage.setItem('crm_session', JSON.stringify({
+        date:      today,
+        role:      role,
+        accountId: accountId || ''
+    }));
+}
+
+// ── 앱 시작 시 세션 확인 ──
+function checkLoginSession() {
+    try {
+        const raw = localStorage.getItem('crm_session');
+        if (!raw) return null;
+
+        const session = JSON.parse(raw);
+        const today   = getKoreanDate();
+
+        // 오늘 날짜와 다르면 세션 삭제
+        if (session.date !== today) {
+            localStorage.removeItem('crm_session');
+            return null;
+        }
+
+        return session; // 유효한 세션
+    } catch(e) {
+        return null;
+    }
+}
+
+// ── 로그아웃 시 세션 삭제 ──
+function clearLoginSession() {
+    localStorage.removeItem('crm_session');
+}
+
+// ── 저장된 세션으로 자동 로그인 시도 ──
+async function tryAutoLoginFromSession() {
+    const savedSession = checkLoginSession();
+    if (!savedSession) return false;
+
+    // 역할 복원
+    if (savedSession.role === 'superadmin') {
+        currentUserRole = 'superadmin';
+        currentAccountInfo = {
+            id: 'superadmin', name: '최고관리자',
+            pin: SUPERADMIN_PIN, color: '#c62828',
+            restrictions: {}
+        };
+    } else if (savedSession.role === 'admin') {
+        const acc = ADMIN_ACCOUNTS.find(
+            a => a.id === savedSession.accountId
+        );
+        if (acc) {
+            currentUserRole = 'admin';
+            currentAccountInfo = acc;
+        }
+    } else if (savedSession.role === 'staff') {
+        const acc = STAFF_ACCOUNTS.find(
+            a => a.id === savedSession.accountId
+        );
+        if (acc) {
+            currentUserRole = 'staff';
+            currentAccountInfo = acc;
+            // 직원 권한 동기화
+            STAFF_RESTRICTIONS = {
+                hideTabs:    acc.restrictions?.hideTabs    || [],
+                hideButtons: acc.restrictions?.hideButtons || [],
+                readOnly:    Object.entries(
+                    acc.restrictions?.fieldAccess || {}
+                ).filter(([,v]) => v === 'readonly').map(([k]) => k)
+            };
+        }
+    }
+
+    if (currentUserRole) {
+        // 자동 로그인 성공
+        document.getElementById('mainPage').style.display    = 'block';
+        document.getElementById('loginScreen').style.display = 'none';
+        await onAfterLogin();
+        return true; // 로그인 화면 건너뜀
+    }
+    return false;
+}
+
 async function doLogin() {
     const pin   = document.getElementById('pin-input').value.trim();
     const errEl = document.getElementById('pin-error');
@@ -5615,6 +5700,8 @@ async function doLogin() {
         document.getElementById('mainPage').style.display    = 'block';
         document.getElementById('loginScreen').style.display = 'none';
         showDemoBanner();
+        // ── 로그인 성공 시 오늘 날짜 + 역할 저장 ──
+        saveLoginSession(currentUserRole, currentAccountInfo?.id);
         await onAfterLogin();
         return;
     }
@@ -5658,11 +5745,15 @@ async function doLogin() {
     document.getElementById('pin-input').value     = '';
     document.getElementById('mainPage').style.display    = 'block';
     document.getElementById('loginScreen').style.display = 'none';
+    // ── 로그인 성공 시 오늘 날짜 + 역할 저장 ──
+    saveLoginSession(currentUserRole, currentAccountInfo?.id);
     await onAfterLogin();
 }
 
 function logoutUser() {
     if (!confirm('로그아웃 하시겠습니까?')) return;
+    // ── 로그아웃 시 세션 삭제 ──
+    clearLoginSession();
     stopFirebaseListener();
     if (_saveDebounceTimer) {
         clearTimeout(_saveDebounceTimer);
@@ -6323,6 +6414,8 @@ window.onload = async () => {
                 await preloadAccessSettingsFromCloud();
                 updateRoleActionButtons();
                 updateRegisterButtonStatus();   // ★ 추가
+                // ── 오늘 이미 로그인한 세션이 있으면 자동 로그인 ──
+                if (await tryAutoLoginFromSession()) return;
                 showLoginScreen('online');
                 return;
             }
@@ -6345,6 +6438,8 @@ window.onload = async () => {
         await preloadAccessSettingsFromCloud().catch(() => {});
         updateRoleActionButtons();
         updateRegisterButtonStatus();   // ★ 추가
+        // ── 오늘 이미 로그인한 세션이 있으면 자동 로그인 ──
+        if (await tryAutoLoginFromSession()) return;
         showLoginScreen('offline', remaining);
         return;
     }
@@ -6354,6 +6449,11 @@ window.onload = async () => {
     firebaseReady = false;
     setConnectionMode('local', '🆓 데모 모드');
     updateRegisterButtonStatus();   // ★ 추가
+    // ── 오늘 이미 로그인한 세션이 있으면 자동 로그인 (데모 모드) ──
+    if (await tryAutoLoginFromSession()) {
+        showDemoBanner();
+        return;
+    }
     showLoginScreen('demo');
 };
 
@@ -14511,5 +14611,6 @@ function openInChrome() {
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/vcd15cbe7772f49c399c6a5babf22c1241717689176015" integrity="sha512-ZpsOmlRQV6y907TI0dKBHq9Md29nnaEIPlkf84rnaERnq6zvWvPUqr2ft8M1aS28oN72PdrCzSjY4U6VaAw1EQ==" data-cf-beacon='{"rayId":"9fb18930984fe879","serverTiming":{"name":{"cfExtPri":true,"cfEdge":true,"cfOrigin":true,"cfL4":true,"cfSpeedBrain":true,"cfCacheStatus":true}},"version":"2025.9.1","token":"4edd5f8ec12a48cfa682ab8261b80a79"}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 </body>
 </html>
