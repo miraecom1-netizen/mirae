@@ -118,25 +118,29 @@ const CUSTOMER_FB_KEY    = 'crm_customer_firebase_v1';
 const MAIN_CRM_URL = 'index.html';
 
 /* ══ 공통: 팝업 닫기 함수 ══
-   - window.close()는 JS로 연 창만 닫을 수 있으므로
-     Tasker가 직접 열었을 때는 실패함.
-   - 그래서 화면을 증을 비우고 "닫힌 상태" UI로 바꾸고
-     동시에 window.close()도 시도함. 성공하면 그대로 닫히고,
-     실패해도 CRM이 보이지 않아 깨끗하게 유지됨. */
+   우선순위:
+   1) window.close() 시도 (JS로 열린 창은 성공)
+   2) about:blank로 이동 (빈 화면 표시 — 가장 확실)
+   - history.back()을 쓰면 이전 페이지(CRM)가 뜨므로 구현 X */
+let _closeAttempted = false;
 function closePopup() {
+    if (_closeAttempted) return;
+    _closeAttempted = true;
+
+    // 1) 먼저 화면을 비움 (CRM 흔적 제거)
     document.body.classList.add('closed');
     document.getElementById('popup').innerHTML = `
         <div style="text-align:center;padding:30px 20px;color:#999;">
             <div style="font-size:32px;margin-bottom:10px;opacity:.5;">✔️</div>
             <div style="font-size:13px;">팝업이 닫혔습니다</div>
-            <div style="font-size:11px;margin-top:6px;opacity:.7;">
-                이 탭은 수동으로 닫아주세요
-            </div>
         </div>`;
-    // window.close() 시도 (열린 창이면 성공)
+
+    // 2) window.close() 시도 → 실패하면 about:blank로 이동
+    try { window.close(); } catch(e) {}
     setTimeout(() => {
-        try { window.close(); } catch(e) {}
-    }, 50);
+        // 아직 닫히지 않았으면 about:blank로 강제 이동
+        window.location.replace('about:blank');
+    }, 200);
 }
 
 // 알람 소리 (메인 CRM과 동일한 톤)
