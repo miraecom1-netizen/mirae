@@ -6387,6 +6387,9 @@ function updateRegisterButtonStatus() {
 window.onload = async () => {
     await showSplashScreen();
 
+    // ★ 전화 수신 감지 (테스커 연동)
+    checkIncomingCallParam();
+
     loadAccessSettings();
 
     ['mainPage','loginScreen','setupScreen'].forEach(id => {
@@ -14373,6 +14376,298 @@ function _showPrintGuidePopup() {
 
 
 
+/* ═══════════════════════════════════════════
+   ★ 테스커 전화 수신 연동
+   - 등록 고객: 이름 + 미수금 팝업
+   - 미등록 번호: 고객 등록 버튼 팝업
+═══════════════════════════════════════════ */
+
+function checkIncomingCallParam() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const incomingNum = urlParams.get('incoming_call');
+    if (!incomingNum) return;
+
+    // URL 파라미터 즉시 제거 (히스토리 정리)
+    window.history.replaceState({}, '', window.location.pathname);
+
+    // 로그인 완료 후 팝업 표시 (로그인 대기 시간 고려)
+    const waitForLogin = setInterval(() => {
+        if (currentUserRole) {
+            clearInterval(waitForLogin);
+            processIncomingCall(incomingNum);
+        }
+    }, 500);
+
+    // 최대 30초 대기
+    setTimeout(() => clearInterval(waitForLogin), 30000);
+}
+
+function processIncomingCall(phoneNum) {
+    const digits = String(phoneNum || '').replace(/[^0-9]/g, '');
+    if (!digits) return;
+
+    // 고객 목록에서 검색
+    const matched = customers.find(c => {
+        const cDigits = String(c.phone || '').replace(/[^0-9]/g, '');
+        if (!cDigits) return false;
+
+        // 완전 일치
+        if (cDigits === digits) return true;
+
+        // 뒤 8자리 일치 (지역번호 차이 대응)
+        if (digits.length >= 8 && cDigits.length >= 8) {
+            return cDigits.slice(-8) === digits.slice(-8);
+        }
+        return false;
+    });
+
+    showIncomingCallPopup(phoneNum, matched);
+}
+
+function showIncomingCallPopup(phoneNum, customer) {
+    // 기존 팝업 제거
+    document.getElementById('crm-incoming-popup')?.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'crm-incoming-popup';
+    modal.style.cssText = [
+        'position:fixed',
+        'top:16px',
+        'right:16px',
+        'z-index:9999999',
+        'width:min(360px,92vw)',
+        'border-radius:18px',
+        'box-shadow:0 12px 44px rgba(0,0,0,.38)',
+        'font-family:Pretendard,sans-serif',
+        'overflow:hidden',
+        'animation:alarmPop .4s cubic-bezier(.175,.885,.32,1.275)'
+    ].join(';');
+
+    if (customer) {
+        // ── 등록된 고객 ──
+        const unpaid = (customer.services || [])
+            .filter(s => s.isUnpaid === true)
+            .reduce((sum, s) => sum + (Number(s.price) || 0), 0);
+
+        const lastService = [...(customer.services || [])]
+            .filter(s => s.date)
+            .sort((a, b) => b.date.localeCompare(a.date))[0];
+
+        const serviceCount = (customer.services || []).length;
+
+        modal.innerHTML = `
+        <div style="background:linear-gradient(135deg,#1a73e8,#0d47a1);
+                    color:white;padding:15px 18px;
+                    display:flex;align-items:center;gap:12px;">
+            <div style="font-size:32px;
+                        animation:alarmShake .6s ease 2;">📞</div>
+            <div style="flex:1;min-width:0;">
+                <div style="font-size:11px;opacity:.8;margin-bottom:2px;">
+                    📱 수신 전화
+                </div>
+                <div style="font-size:15px;font-weight:800;
+                            letter-spacing:.5px;">
+                    ${escapeHtml(phoneNum)}
+                </div>
+            </div>
+            <button onclick="document.getElementById('crm-incoming-popup').remove()"
+                style="background:rgba(255,255,255,.2);color:white;
+                       border:none;border-radius:8px;
+                       padding:5px 10px;cursor:pointer;
+                       font-weight:bold;font-size:14px;flex-shrink:0;">
+                ✕
+            </button>
+        </div>
+
+        <div style="background:white;padding:16px 18px;">
+
+            <div style="display:flex;align-items:center;gap:8px;
+                        margin-bottom:10px;">
+                <span style="background:#e8f5e9;color:#2e7d32;
+                             font-size:11px;font-weight:bold;
+                             padding:3px 10px;border-radius:999px;
+                             border:1px solid #a5d6a7;">
+                    ✅ 등록 고객 · No.${customer.no}
+                </span>
+                <span style="background:#e3f2fd;color:#1565c0;
+                             font-size:11px;font-weight:bold;
+                             padding:3px 10px;border-radius:999px;
+                             border:1px solid #90caf9;">
+                    총 ${serviceCount}회 방문
+                </span>
+            </div>
+
+            <div style="font-size:24px;font-weight:900;
+                        color:#111;margin-bottom:6px;">
+                ${escapeHtml(customer.name)}
+            </div>
+
+            ${customer.addr ? `
+            <div style="font-size:12px;color:#666;margin-bottom:4px;">
+                📍 ${escapeHtml(customer.addr)}
+            </div>` : ''}
+
+            ${customer.specs ? `
+            <div style="font-size:12px;color:#666;margin-bottom:8px;">
+                🔧 ${escapeHtml(customer.specs)}
+            </div>` : ''}
+
+            ${lastService ? `
+            <div style="background:#f8f9fa;border-left:4px solid #1a73e8;
+                        border-radius:0 8px 8px 0;
+                        padding:8px 12px;margin-bottom:10px;">
+                <div style="font-size:11px;color:#888;margin-bottom:2px;">
+                    마지막 방문
+                </div>
+                <div style="font-size:13px;font-weight:bold;color:#333;">
+                    📅 ${escapeHtml(lastService.date)}
+                </div>
+                <div style="font-size:12px;color:#555;margin-top:2px;">
+                    ${escapeHtml(
+                        (lastService.content || '')
+                        .split('\n')[0].slice(0, 30)
+                    )}
+                </div>
+            </div>` : ''}
+
+            ${unpaid > 0 ? `
+            <div style="background:#ffebee;border:1.5px solid #ffcdd2;
+                        border-radius:10px;padding:10px 14px;
+                        margin-bottom:12px;
+                        display:flex;justify-content:space-between;
+                        align-items:center;">
+                <span style="font-size:13px;color:#c62828;font-weight:bold;">
+                    💳 미수금
+                </span>
+                <span style="font-size:18px;font-weight:900;color:#c62828;">
+                    ${unpaid.toLocaleString()}원
+                </span>
+            </div>` : `
+            <div style="background:#e8f5e9;border:1.5px solid #a5d6a7;
+                        border-radius:10px;padding:8px 14px;
+                        margin-bottom:12px;text-align:center;">
+                <span style="font-size:12px;color:#2e7d32;font-weight:bold;">
+                    ✅ 미수금 없음
+                </span>
+            </div>`}
+
+            <div style="display:flex;gap:8px;">
+                <button onclick="
+                    document.getElementById('crm-incoming-popup').remove();
+                    executeWithDirtyCheck(function(){
+                        showDetail('${customer.id}');
+                    });"
+                    style="flex:2;padding:13px;
+                           background:linear-gradient(135deg,#1a73e8,#0d47a1);
+                           color:white;border:none;border-radius:12px;
+                           font-size:14px;font-weight:bold;cursor:pointer;">
+                    📋 상세 보기
+                </button>
+                <button onclick="document.getElementById('crm-incoming-popup').remove()"
+                    style="flex:1;padding:13px;background:#f5f5f5;
+                           color:#555;border:1px solid #ddd;
+                           border-radius:12px;font-size:13px;
+                           font-weight:bold;cursor:pointer;">
+                    닫기
+                </button>
+            </div>
+        </div>`;
+
+    } else {
+        // ── 미등록 번호 ──
+        const encodedPhone = encodeURIComponent(phoneNum);
+
+        modal.innerHTML = `
+        <div style="background:linear-gradient(135deg,#f57c00,#e65100);
+                    color:white;padding:15px 18px;
+                    display:flex;align-items:center;gap:12px;">
+            <div style="font-size:32px;
+                        animation:alarmShake .6s ease 2;">📞</div>
+            <div style="flex:1;min-width:0;">
+                <div style="font-size:11px;opacity:.8;margin-bottom:2px;">
+                    📱 수신 전화
+                </div>
+                <div style="font-size:15px;font-weight:800;
+                            letter-spacing:.5px;">
+                    ${escapeHtml(phoneNum)}
+                </div>
+            </div>
+            <button onclick="document.getElementById('crm-incoming-popup').remove()"
+                style="background:rgba(255,255,255,.2);color:white;
+                       border:none;border-radius:8px;
+                       padding:5px 10px;cursor:pointer;
+                       font-weight:bold;font-size:14px;flex-shrink:0;">
+                ✕
+            </button>
+        </div>
+
+        <div style="background:white;padding:16px 18px;">
+
+            <div style="text-align:center;margin-bottom:14px;">
+                <div style="font-size:42px;margin-bottom:8px;">❓</div>
+                <div style="font-size:16px;font-weight:800;color:#e65100;">
+                    미등록 번호
+                </div>
+                <div style="font-size:13px;color:#888;margin-top:4px;">
+                    저장된 고객 정보가 없습니다
+                </div>
+            </div>
+
+            <div style="background:#fff8f0;border:1.5px solid #ffcc80;
+                        border-radius:10px;padding:10px 14px;
+                        margin-bottom:14px;text-align:center;">
+                <div style="font-size:13px;color:#888;margin-bottom:2px;">
+                    수신 번호
+                </div>
+                <div style="font-size:20px;font-weight:900;color:#e65100;">
+                    ${escapeHtml(phoneNum)}
+                </div>
+            </div>
+
+            <button onclick="
+                document.getElementById('crm-incoming-popup').remove();
+                executeWithDirtyCheck(function(){
+                    showList();
+                    setTimeout(function(){
+                        document.getElementById('c-phone').value =
+                            '${escapeHtml(phoneNum)}';
+                        document.getElementById('c-name').focus();
+                        window.scrollTo({top:0, behavior:'smooth'});
+                        showAlarmToast(
+                            '📱 전화번호가 자동 입력되었습니다!',
+                            'success'
+                        );
+                    }, 300);
+                });"
+                style="width:100%;padding:14px;
+                       background:linear-gradient(135deg,#e65100,#bf360c);
+                       color:white;border:none;border-radius:12px;
+                       font-size:15px;font-weight:bold;
+                       cursor:pointer;margin-bottom:8px;">
+                ➕ 신규 고객으로 등록하기
+            </button>
+
+            <button onclick="document.getElementById('crm-incoming-popup').remove()"
+                style="width:100%;padding:11px;background:#f5f5f5;
+                       color:#555;border:1px solid #ddd;
+                       border-radius:12px;font-size:13px;
+                       font-weight:bold;cursor:pointer;">
+                닫기
+            </button>
+        </div>`;
+    }
+
+    document.body.appendChild(modal);
+
+    // 알람 소리
+    playAlarmSound();
+
+    // 40초 후 자동 닫기
+    setTimeout(() => {
+        document.getElementById('crm-incoming-popup')?.remove();
+    }, 40000);
+}
+
 </script>
 
 <!-- 세금계산서 발행 모달 -->
@@ -14611,6 +14906,7 @@ function openInChrome() {
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/vcd15cbe7772f49c399c6a5babf22c1241717689176015" integrity="sha512-ZpsOmlRQV6y907TI0dKBHq9Md29nnaEIPlkf84rnaERnq6zvWvPUqr2ft8M1aS28oN72PdrCzSjY4U6VaAw1EQ==" data-cf-beacon='{"rayId":"9fb18930984fe879","serverTiming":{"name":{"cfExtPri":true,"cfEdge":true,"cfOrigin":true,"cfL4":true,"cfSpeedBrain":true,"cfCacheStatus":true}},"version":"2025.9.1","token":"4edd5f8ec12a48cfa682ab8261b80a79"}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 </body>
 </html>
