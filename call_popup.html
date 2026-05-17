@@ -25,8 +25,13 @@ body {
     background: rgba(0,0,0,.35);
     transition: background .25s ease;
 }
+/* 닫힌 상태: 완전 투명 처리 — 아무것도 안 보임 */
 body.closed {
-    background: #f5f5f5;
+    background: transparent !important;
+    pointer-events: none;
+}
+body.closed #popup {
+    display: none !important;
 }
 
 @keyframes alarmPop {
@@ -117,30 +122,32 @@ const CUSTOMER_FB_KEY    = 'crm_customer_firebase_v1';
 // → 같은 폴더에 있는 index.html을 가리킴. 필요 시 절대경로로 변경하세요.
 const MAIN_CRM_URL = 'index.html';
 
-/* ══ 공통: 팝업 닫기 함수 ══
-   우선순위:
-   1) window.close() 시도 (JS로 열린 창은 성공)
-   2) about:blank로 이동 (빈 화면 표시 — 가장 확실)
-   - history.back()을 쓰면 이전 페이지(CRM)가 뜨므로 구현 X */
+/* ══ 팝업 닫기 함수 (최적 조합 방식) ══
+   전략:
+   1) 즉시 투명 처리 (팝업/배경 완전히 안 보임) — 100% 성공
+   2) 동시에 자동 탭 닫기 시도 (보너스) — 성공하면 탭 사라짐
+   3) 둘 다 실패해도 사용자는 빈 화면만 보게 됨 → 홈버튼 */
 let _closeAttempted = false;
 function closePopup() {
     if (_closeAttempted) return;
     _closeAttempted = true;
 
-    // 1) 먼저 화면을 비움 (CRM 흔적 제거)
+    // ② 안전망: 즉시 투명 처리 (이게 먼저!)
     document.body.classList.add('closed');
-    document.getElementById('popup').innerHTML = `
-        <div style="text-align:center;padding:30px 20px;color:#999;">
-            <div style="font-size:32px;margin-bottom:10px;opacity:.5;">✔️</div>
-            <div style="font-size:13px;">팝업이 닫혔습니다</div>
-        </div>`;
 
-    // 2) window.close() 시도 → 실패하면 about:blank로 이동
+    // ① 보너스: 자동 탭 닫기 시도 (성공하면 더 좋음)
+    tryCloseTab();
+    setTimeout(tryCloseTab, 100);
+}
+
+/* 탭 닫기 다중 시도 함수 (조용히 백그라운드에서 시도) */
+function tryCloseTab() {
     try { window.close(); } catch(e) {}
-    setTimeout(() => {
-        // 아직 닫히지 않았으면 about:blank로 강제 이동
-        window.location.replace('about:blank');
-    }, 200);
+    try { self.close(); } catch(e) {}
+    try {
+        const w = window.open('', '_self');
+        if (w) w.close();
+    } catch(e) {}
 }
 
 // 알람 소리 (메인 CRM과 동일한 톤)
