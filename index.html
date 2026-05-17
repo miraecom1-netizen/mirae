@@ -6390,6 +6390,9 @@ window.onload = async () => {
     // ★ 전화 수신 감지 (테스커 연동)
     checkIncomingCallParam();
 
+    // ★ 별도 팝업에서 넘어온 액션 처리
+    checkPopupAction();
+
     loadAccessSettings();
 
     ['mainPage','loginScreen','setupScreen'].forEach(id => {
@@ -14381,6 +14384,55 @@ function _showPrintGuidePopup() {
    - 등록 고객: 이름 + 미수금 팝업
    - 미등록 번호: 고객 등록 버튼 팝업
 ═══════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════
+   ★ 별도 팝업(call_popup.html)에서 넘어온 액션 처리
+   - ?show_detail=<id>       → 해당 고객 상세 화면
+   - ?register_phone=<번호> → 신규 등록 폼에 번호 자동 입력
+═══════════════════════════════════════════ */
+function checkPopupAction() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const showDetailId  = urlParams.get('show_detail');
+    const registerPhone = urlParams.get('register_phone');
+
+    if (!showDetailId && !registerPhone) return;
+
+    // URL 파라미터 제거
+    window.history.replaceState({}, '', window.location.pathname);
+
+    // 로그인 완료 대기
+    const waitForLogin = setInterval(() => {
+        if (currentUserRole && Array.isArray(customers)) {
+            clearInterval(waitForLogin);
+
+            if (showDetailId) {
+                executeWithDirtyCheck(() => {
+                    try { showDetail(showDetailId); }
+                    catch(e) { console.error('상세보기 실패', e); showList(); }
+                });
+            } else if (registerPhone) {
+                executeWithDirtyCheck(() => {
+                    showList();
+                    setTimeout(() => {
+                        const phoneInput = document.getElementById('c-phone');
+                        const nameInput  = document.getElementById('c-name');
+                        if (phoneInput) phoneInput.value = registerPhone;
+                        if (nameInput)  nameInput.focus();
+                        window.scrollTo({ top:0, behavior:'smooth' });
+                        if (typeof showAlarmToast === 'function') {
+                            showAlarmToast(
+                                '📱 전화번호가 자동 입력되었습니다!',
+                                'success'
+                            );
+                        }
+                    }, 300);
+                });
+            }
+        }
+    }, 500);
+
+    setTimeout(() => clearInterval(waitForLogin), 30000);
+}
 
 function checkIncomingCallParam() {
     const urlParams = new URLSearchParams(window.location.search);
