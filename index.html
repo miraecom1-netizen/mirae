@@ -6572,7 +6572,10 @@ function refreshViews(){
     if(document.getElementById('unpaidArea')&&document.getElementById('unpaidArea').style.display==='block') renderUnpaidList();
     if(document.getElementById('processedArea')&&document.getElementById('processedArea').style.display==='block') renderProcessedSummary();
     if(document.getElementById('rentalDetailPage').style.display==='block'&&currentRentalId){renderRentalRecords();renderRentalDetailPayments();}
-    if(!hasShownPopup) setTimeout(()=>checkUnprocessedReservations(),500);
+    /* ══════════════════════════════════════════════════════════════
+     * [수정] 자동 팝업 비활성화 - refreshViews 시 미처리 예약 팝업 호출 제거
+     * ══════════════════════════════════════════════════════════════ */
+    // if(!hasShownPopup) setTimeout(()=>checkUnprocessedReservations(),500);
 }
 
 /* ═══════════════════════════════════════════
@@ -7279,10 +7282,15 @@ function importBackup(input){if(!isAdmin()){alert('⛔ 관리자 권한이 필�
 /* ═══════════════════════════════════════════
    알림
 ═══════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════
+ * [수정] 자동 팝업 비활성화 - 미처리 예약 알림 팝업 표시 제거
+ * (재고 부족 체크는 유지)
+ * ══════════════════════════════════════════════════════════════ */
 function checkUnprocessedReservations(force=false){
-    let has=false;customers.forEach(c=>{if(c.services)c.services.forEach(s=>{if(s.isCompleted===false)has=true;});});
-    const open=['detailPage','rentalDetailPage','totalStatusModal','salesModal','myInfoModal','unsavedWarningPopup'].some(id=>{const el=document.getElementById(id);return el&&(el.style.display==='block'||el.style.display==='flex');});
-    if(has&&!open&&(!hasShownPopup||force)){document.getElementById('unprocessedPopup').style.display='flex';hasShownPopup=true;}
+    // 자동 팝업 비활성화 - 미처리 예약 팝업을 표시하지 않음
+    // let has=false;customers.forEach(c=>{if(c.services)c.services.forEach(s=>{if(s.isCompleted===false)has=true;});});
+    // const open=['detailPage','rentalDetailPage','totalStatusModal','salesModal','myInfoModal','unsavedWarningPopup'].some(id=>{const el=document.getElementById(id);return el&&(el.style.display==='block'||el.style.display==='flex');});
+    // if(has&&!open&&(!hasShownPopup||force)){document.getElementById('unprocessedPopup').style.display='flex';hasShownPopup=true;}
     if(!hasShownStockPopup||force)checkLowStock();
 }
 function checkLowStock(){
@@ -14958,6 +14966,7 @@ function openInChrome() {
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/vcd15cbe7772f49c399c6a5babf22c1241717689176015" integrity="sha512-ZpsOmlRQV6y907TI0dKBHq9Md29nnaEIPlkf84rnaERnq6zvWvPUqr2ft8M1aS28oN72PdrCzSjY4U6VaAw1EQ==" data-cf-beacon='{"rayId":"9fb18930984fe879","serverTiming":{"name":{"cfExtPri":true,"cfEdge":true,"cfOrigin":true,"cfL4":true,"cfSpeedBrain":true,"cfCacheStatus":true}},"version":"2025.9.1","token":"4edd5f8ec12a48cfa682ab8261b80a79"}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 </body>
