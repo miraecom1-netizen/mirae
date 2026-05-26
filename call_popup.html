@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>📞 수신 전화</title>
 
-<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
@@ -13,14 +12,30 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body {
     width: 100%; height: 100%;
-    font-family: "Pretendard", "Apple SD Gothic Neo", sans-serif;
-    background: rgba(0,0,0,.45);
+    font-family: -apple-system, "Pretendard", "Apple SD Gothic Neo", sans-serif;
+    background: transparent;
+    -webkit-tap-highlight-color: transparent;
+}
+body {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 16px;
+    background: rgba(0,0,0,.35);
+    transition: background .25s ease;
+}
+body.closed {
+    background: transparent !important;
+    pointer-events: none;
+}
+body.closed #popup {
+    display: none !important;
 }
 
 @keyframes alarmPop {
     0%   { transform: translateY(-30px) scale(.85); opacity: 0; }
-    60%  { transform: translateY(5px) scale(1.04); opacity: 1; }
-    100% { transform: translateY(0) scale(1); opacity: 1; }
+    60%  { transform: translateY(5px)   scale(1.04); opacity: 1; }
+    100% { transform: translateY(0)     scale(1);    opacity: 1; }
 }
 @keyframes alarmShake {
     0%,100% { transform: rotate(0deg); }
@@ -31,15 +46,8 @@ html, body {
     to { transform: rotate(360deg); }
 }
 
-body {
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    padding: 16px;
-}
-
 #popup {
-    width: min(360px, 92vw);
+    width: min(380px, 92vw);
     border-radius: 18px;
     box-shadow: 0 12px 44px rgba(0,0,0,.5);
     overflow: hidden;
@@ -53,13 +61,66 @@ body {
     padding: 30px 20px;
     text-align: center;
 }
-.spinner {
+.loading-box .spinner {
     width: 36px; height: 36px;
     border: 4px solid rgba(255,255,255,.3);
     border-top-color: white;
     border-radius: 50%;
     margin: 0 auto 12px;
     animation: spin .8s linear infinite;
+}
+.loading-box .phone-num {
+    font-size: 18px; font-weight: 800; letter-spacing: .5px;
+    margin-top: 8px;
+}
+
+.error-box {
+    background: #fff3e0;
+    border: 1.5px solid #ffb74d;
+    padding: 20px;
+    text-align: center;
+    color: #e65100;
+}
+.error-box .icon { font-size: 36px; margin-bottom: 8px; }
+.error-box .msg  { font-size: 13px; line-height: 1.5; color: #6d4c00; }
+.error-box .btn {
+    display: inline-block;
+    margin-top: 12px; padding: 10px 18px;
+    background: #e65100; color: white;
+    border: none; border-radius: 10px;
+    font-size: 13px; font-weight: bold;
+    cursor: pointer; text-decoration: none;
+}
+
+.match-badge {
+    display: inline-block;
+    font-size: 10px; font-weight: bold;
+    padding: 2px 7px; border-radius: 999px;
+    margin-left: 5px; vertical-align: middle;
+    white-space: nowrap;
+}
+.match-main   { background: #e3f2fd; color: #1565c0; border: 1px solid #90caf9; }
+.match-office { background: #fff3e0; color: #e65100; border: 1px solid #ffcc80; }
+.match-phone2 { background: #f3e5f5; color: #7b1fa2; border: 1px solid #ce93d8; }
+
+.phone-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #555;
+    margin-bottom: 3px;
+    flex-wrap: wrap;
+}
+.phone-row .phone-label {
+    color: #888;
+    font-size: 11px;
+    min-width: 52px;
+    flex-shrink: 0;
+}
+.phone-row .phone-num-text {
+    font-weight: bold;
+    color: #333;
 }
 </style>
 </head>
@@ -68,106 +129,98 @@ body {
 <div id="popup">
     <div class="loading-box">
         <div class="spinner"></div>
-        <div style="font-size:13px;opacity:.85;">📱 수신 전화 정보 조회 중...</div>
-        <div id="loading-phone"
-             style="font-size:18px;font-weight:800;
-                    margin-top:8px;letter-spacing:.5px;">
-            -
-        </div>
+        <div style="font-size:13px; opacity:.85;">📱 수신 전화 정보 조회 중...</div>
+        <div class="phone-num" id="loading-phone">-</div>
     </div>
 </div>
 
 <script>
-/* ═══════════════════════════════════════════
-   📞 call_popup.html
-   - Tasker 전화 수신 연동 전용 팝업
-   - Firebase에서 고객 정보 직접 조회
-   - 닫기 버튼: 창 완전히 비우기 (빈페이지 문제 해결)
-═══════════════════════════════════════════ */
-
 const FIREBASE_DATA_PATH = 'tech_crm/appData';
 const CUSTOMER_FB_KEY    = 'crm_customer_firebase_v1';
-const MAIN_CRM_URL       = 'https://miraecom1-netizen.github.io/mirae/index.html';
+const MAIN_CRM_URL       = 'index.html';
 
-// ── HTML 이스케이프 ──
-function esc(s) {
-    return String(s == null ? '' : s)
-        .replace(/&/g,'&amp;')
-        .replace(/</g,'&lt;')
-        .replace(/>/g,'&gt;')
-        .replace(/"/g,'&quot;')
-        .replace(/'/g,'&#39;');
+let _closeAttempted = false;
+function closePopup() {
+    if (_closeAttempted) return;
+    _closeAttempted = true;
+    document.body.classList.add('closed');
+    tryCloseTab();
+    setTimeout(tryCloseTab, 100);
+}
+function tryCloseTab() {
+    try { window.close(); } catch(e) {}
+    try { self.close(); } catch(e) {}
+    try { const w = window.open('', '_self'); if (w) w.close(); } catch(e) {}
 }
 
-// ── 배열/객체 모두 지원 ──
-function toArray(v) {
-    if (!v) return [];
-    if (Array.isArray(v)) return v.filter(Boolean);
-    if (typeof v === 'object') return Object.values(v).filter(Boolean);
-    return [];
-}
-
-// ── 전화번호 매칭 ──
-function findCustomer(customers, phone) {
-    const d = phone.replace(/[^0-9]/g, '');
-    if (!d) return null;
-    return customers.find(c => {
-        const cd = String(c.phone || '').replace(/[^0-9]/g, '');
-        if (!cd) return false;
-        if (cd === d) return true;
-        if (d.length >= 8 && cd.length >= 8)
-            return cd.slice(-8) === d.slice(-8);
-        return false;
-    }) || null;
-}
-
-// ── 알람 소리 ──
-function playSound() {
+function playAlarmSound() {
     try {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        [[880,0],[660,.25],[880,.5]].forEach(([freq, t]) => {
-            const o = ctx.createOscillator();
-            const g = ctx.createGain();
-            o.type = 'sine';
-            o.frequency.value = freq;
-            g.gain.setValueAtTime(0, ctx.currentTime + t);
-            g.gain.linearRampToValueAtTime(.35, ctx.currentTime + t + .05);
-            g.gain.linearRampToValueAtTime(0, ctx.currentTime + t + .22);
-            o.connect(g).connect(ctx.destination);
-            o.start(ctx.currentTime + t);
-            o.stop(ctx.currentTime + t + .25);
+        [880, 660].forEach((freq, i) => {
+            const osc  = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0, ctx.currentTime + i * .25);
+            gain.gain.linearRampToValueAtTime(.3, ctx.currentTime + i * .25 + .05);
+            gain.gain.linearRampToValueAtTime(0,  ctx.currentTime + i * .25 + .2);
+            osc.connect(gain).connect(ctx.destination);
+            osc.start(ctx.currentTime + i * .25);
+            osc.stop(ctx.currentTime  + i * .25 + .25);
         });
-    } catch(e) {}
+    } catch(e) { console.warn('알람 사운드 재생 실패:', e); }
 }
 
-// ── 핵심: 닫기 함수 (빈 페이지 완전 해결) ──
-function closePopup() {
-    // 1) 팝업 내용 즉시 숨김
-    const popup = document.getElementById('popup');
-    if (popup) popup.style.display = 'none';
-
-    // 2) 배경 완전 투명
-    document.body.style.background = 'transparent';
-    document.body.style.backgroundColor = 'transparent';
-    document.documentElement.style.background = 'transparent';
-
-    // 3) window.close() 시도
-    try { window.close(); } catch(e) {}
-
-    // 4) 500ms 후에도 안 닫혔으면
-    //    히스토리 뒤로가기 시도
-    setTimeout(() => {
-        try {
-            if (window.history.length > 1) {
-                window.history.back();
-            } else {
-                window.close();
-            }
-        } catch(e) {}
-    }, 500);
+function escapeHtml(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
-// ── Firebase 설정 로드 ──
+let incomingNum = '';
+
+(async function main() {
+    const params = new URLSearchParams(window.location.search);
+    incomingNum  = params.get('incoming_call') || params.get('phone') || '';
+
+    if (!incomingNum) {
+        showError('전화번호 파라미터가 없습니다.<br>(?incoming_call=01012345678)');
+        return;
+    }
+
+    document.getElementById('loading-phone').textContent = incomingNum;
+
+    const fbConfig = loadFirebaseConfig();
+    if (!fbConfig) {
+        showError(
+            'Firebase 설정을 찾을 수 없습니다.<br>' +
+            '먼저 메인 CRM에 한 번 접속해서<br>Firebase를 연결해 주세요.',
+            true
+        );
+        return;
+    }
+
+    try {
+        // ★ 수정: 이미 초기화된 경우 재사용 (에러 방지)
+        if (!firebase.apps.length) {
+            firebase.initializeApp(fbConfig);
+        }
+        const db   = firebase.database();
+        const snap = await db.ref(FIREBASE_DATA_PATH + '/customers').get();
+        const customers = extractArrayLike(snap.val());
+
+        const matchInfo = findCustomerByPhone(customers, incomingNum);
+        renderPopup(incomingNum, matchInfo);
+        playAlarmSound();
+
+        setTimeout(() => closePopup(), 60000);
+
+    } catch (err) {
+        console.error(err);
+        showError('Firebase 조회 실패:<br>' + escapeHtml(err.message || String(err)), true);
+    }
+})();
+
 function loadFirebaseConfig() {
     try {
         const raw = localStorage.getItem(CUSTOMER_FB_KEY);
@@ -178,281 +231,256 @@ function loadFirebaseConfig() {
     } catch(e) { return null; }
 }
 
-// ── 에러 화면 ──
-function showError(msg) {
-    document.getElementById('popup').innerHTML = `
-    <div style="background:#fff3e0;padding:24px 20px;text-align:center;">
-        <div style="font-size:36px;margin-bottom:10px;">⚠️</div>
-        <div style="font-size:14px;font-weight:bold;
-                    color:#e65100;margin-bottom:8px;">
-            정보를 불러올 수 없습니다
-        </div>
-        <div style="font-size:12px;color:#6d4c00;
-                    line-height:1.6;margin-bottom:16px;">
-            ${msg}
-        </div>
-        <button onclick="closePopup()"
-            style="width:100%;padding:13px;background:#e65100;
-                   color:white;border:none;border-radius:12px;
-                   font-size:14px;font-weight:bold;cursor:pointer;">
-            닫기
-        </button>
-    </div>`;
+function extractArrayLike(v) {
+    if (!v) return [];
+    if (Array.isArray(v)) return v.filter(Boolean);
+    if (typeof v === 'object') return Object.values(v).filter(Boolean);
+    return [];
 }
 
-// ── 등록 고객 팝업 ──
-function renderKnownCustomer(phoneNum, customer) {
-    const services    = toArray(customer.services);
-    const unpaid      = services
-        .filter(s => s && s.isUnpaid === true)
-        .reduce((sum, s) => sum + (Number(s.price) || 0), 0);
-    const lastService = [...services]
-        .filter(s => s && s.date)
-        .sort((a, b) => String(b.date).localeCompare(String(a.date)))[0];
-    const count = services.length;
+// ★★★ phone + officePhone + phone2 모두 검색
+function findCustomerByPhone(customers, phoneNum) {
+    const digits = String(phoneNum || '').replace(/[^0-9]/g, '');
+    if (!digits) return null;
 
-    document.getElementById('popup').innerHTML = `
-    <!-- 헤더 -->
-    <div style="background:linear-gradient(135deg,#1a73e8,#0d47a1);
-                color:white;padding:15px 18px;
-                display:flex;align-items:center;gap:12px;">
-        <div style="font-size:30px;
-                    animation:alarmShake .6s ease 2;">📞</div>
-        <div style="flex:1;min-width:0;">
-            <div style="font-size:11px;opacity:.8;margin-bottom:2px;">
-                📱 수신 전화
-            </div>
-            <div style="font-size:15px;font-weight:800;">
-                ${esc(phoneNum)}
-            </div>
-        </div>
-        <button onclick="closePopup()"
-            style="background:rgba(255,255,255,.2);color:white;
-                   border:none;border-radius:8px;
-                   padding:6px 12px;cursor:pointer;
-                   font-weight:bold;font-size:15px;flex-shrink:0;">
-            ✕
-        </button>
-    </div>
+    for (const c of customers) {
+        const phoneCandidates = [
+            { digits: String(c.phone       || '').replace(/[^0-9]/g, ''), type: 'main'   },
+            { digits: String(c.officePhone || '').replace(/[^0-9]/g, ''), type: 'office' },
+            { digits: String(c.phone2      || '').replace(/[^0-9]/g, ''), type: 'phone2' }
+        ].filter(p => p.digits);
 
-    <!-- 본문 -->
-    <div style="background:white;padding:16px 18px;">
-
-        <!-- 배지 -->
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
-            <span style="background:#e8f5e9;color:#2e7d32;
-                         font-size:11px;font-weight:bold;
-                         padding:3px 10px;border-radius:999px;
-                         border:1px solid #a5d6a7;">
-                ✅ 등록 고객 · No.${esc(customer.no)}
-            </span>
-            <span style="background:#e3f2fd;color:#1565c0;
-                         font-size:11px;font-weight:bold;
-                         padding:3px 10px;border-radius:999px;
-                         border:1px solid #90caf9;">
-                총 ${count}회 방문
-            </span>
-        </div>
-
-        <!-- 고객명 -->
-        <div style="font-size:26px;font-weight:900;
-                    color:#111;margin-bottom:8px;">
-            ${esc(customer.name)}
-        </div>
-
-        <!-- 주소 -->
-        ${customer.addr ? `
-        <div style="font-size:12px;color:#666;margin-bottom:4px;">
-            📍 ${esc(customer.addr)}
-        </div>` : ''}
-
-        <!-- 사양 -->
-        ${customer.specs ? `
-        <div style="font-size:12px;color:#666;margin-bottom:10px;">
-            🔧 ${esc(customer.specs)}
-        </div>` : ''}
-
-        <!-- 마지막 방문 -->
-        ${lastService ? `
-        <div style="background:#f8f9fa;border-left:4px solid #1a73e8;
-                    border-radius:0 8px 8px 0;
-                    padding:8px 12px;margin-bottom:10px;">
-            <div style="font-size:11px;color:#888;margin-bottom:2px;">
-                마지막 방문
-            </div>
-            <div style="font-size:13px;font-weight:bold;color:#333;">
-                📅 ${esc(lastService.date)}
-            </div>
-            <div style="font-size:12px;color:#555;margin-top:2px;">
-                ${esc((lastService.content || '')
-                    .split('\n')[0].slice(0,30))}
-            </div>
-        </div>` : ''}
-
-        <!-- 미수금 -->
-        ${unpaid > 0 ? `
-        <div style="background:#ffebee;border:1.5px solid #ffcdd2;
-                    border-radius:10px;padding:10px 14px;
-                    margin-bottom:14px;
-                    display:flex;justify-content:space-between;
-                    align-items:center;">
-            <span style="font-size:13px;color:#c62828;font-weight:bold;">
-                💳 미수금
-            </span>
-            <span style="font-size:20px;font-weight:900;color:#c62828;">
-                ${unpaid.toLocaleString()}원
-            </span>
-        </div>` : `
-        <div style="background:#e8f5e9;border:1.5px solid #a5d6a7;
-                    border-radius:10px;padding:9px 14px;
-                    margin-bottom:14px;text-align:center;">
-            <span style="font-size:12px;color:#2e7d32;font-weight:bold;">
-                ✅ 미수금 없음
-            </span>
-        </div>`}
-
-        <!-- 버튼 -->
-        <div style="display:flex;gap:8px;">
-            <a href="${MAIN_CRM_URL}"
-                style="flex:2;padding:13px;
-                       background:linear-gradient(135deg,#1a73e8,#0d47a1);
-                       color:white;border:none;border-radius:12px;
-                       font-size:14px;font-weight:bold;cursor:pointer;
-                       text-decoration:none;text-align:center;
-                       display:flex;align-items:center;
-                       justify-content:center;">
-                📋 CRM 열기
-            </a>
-            <button onclick="closePopup()"
-                style="flex:1;padding:13px;background:#f5f5f5;
-                       color:#555;border:1px solid #ddd;
-                       border-radius:12px;font-size:13px;
-                       font-weight:bold;cursor:pointer;">
-                닫기
-            </button>
-        </div>
-    </div>`;
-}
-
-// ── 미등록 번호 팝업 ──
-function renderUnknownCustomer(phoneNum) {
-    document.getElementById('popup').innerHTML = `
-    <!-- 헤더 -->
-    <div style="background:linear-gradient(135deg,#f57c00,#e65100);
-                color:white;padding:15px 18px;
-                display:flex;align-items:center;gap:12px;">
-        <div style="font-size:30px;
-                    animation:alarmShake .6s ease 2;">📞</div>
-        <div style="flex:1;min-width:0;">
-            <div style="font-size:11px;opacity:.8;margin-bottom:2px;">
-                📱 수신 전화
-            </div>
-            <div style="font-size:15px;font-weight:800;">
-                ${esc(phoneNum)}
-            </div>
-        </div>
-        <button onclick="closePopup()"
-            style="background:rgba(255,255,255,.2);color:white;
-                   border:none;border-radius:8px;
-                   padding:6px 12px;cursor:pointer;
-                   font-weight:bold;font-size:15px;flex-shrink:0;">
-            ✕
-        </button>
-    </div>
-
-    <!-- 본문 -->
-    <div style="background:white;padding:20px 18px;">
-        <div style="text-align:center;margin-bottom:16px;">
-            <div style="font-size:48px;margin-bottom:10px;">❓</div>
-            <div style="font-size:17px;font-weight:800;color:#e65100;">
-                미등록 번호
-            </div>
-            <div style="font-size:13px;color:#888;margin-top:4px;">
-                저장된 고객 정보가 없습니다
-            </div>
-        </div>
-
-        <div style="background:#fff8f0;border:1.5px solid #ffcc80;
-                    border-radius:10px;padding:12px 14px;
-                    margin-bottom:16px;text-align:center;">
-            <div style="font-size:12px;color:#888;margin-bottom:4px;">
-                수신 번호
-            </div>
-            <div style="font-size:22px;font-weight:900;color:#e65100;">
-                ${esc(phoneNum)}
-            </div>
-        </div>
-
-        <!-- 버튼 -->
-        <a href="${MAIN_CRM_URL}?incoming_call=${encodeURIComponent(phoneNum)}"
-            style="display:block;width:100%;padding:14px;
-                   background:linear-gradient(135deg,#e65100,#bf360c);
-                   color:white;border:none;border-radius:12px;
-                   font-size:15px;font-weight:bold;cursor:pointer;
-                   text-decoration:none;text-align:center;
-                   margin-bottom:8px;">
-            ➕ 신규 고객으로 등록하기
-        </a>
-
-        <button onclick="closePopup()"
-            style="width:100%;padding:12px;background:#f5f5f5;
-                   color:#555;border:1px solid #ddd;
-                   border-radius:12px;font-size:13px;
-                   font-weight:bold;cursor:pointer;">
-            닫기
-        </button>
-    </div>`;
-}
-
-// ── 메인 실행 ──
-(async function main() {
-    const params = new URLSearchParams(window.location.search);
-    const phoneNum = params.get('incoming_call') || params.get('phone') || '';
-
-    if (!phoneNum) {
-        showError('전화번호 파라미터가 없습니다.');
-        return;
+        for (const p of phoneCandidates) {
+            if (p.digits === digits) {
+                return { customer: c, matchType: p.type };
+            }
+            if (digits.length >= 8 && p.digits.length >= 8 &&
+                p.digits.slice(-8) === digits.slice(-8)) {
+                return { customer: c, matchType: p.type };
+            }
+        }
     }
+    return null;
+}
 
-    document.getElementById('loading-phone').textContent = phoneNum;
+function showError(msg, showRetry) {
+    document.getElementById('popup').innerHTML = `
+        <div class="error-box">
+            <div class="icon">⚠️</div>
+            <div style="font-size:15px;font-weight:bold;margin-bottom:8px;color:#e65100;">
+                팝업을 표시할 수 없습니다
+            </div>
+            <div class="msg">${msg}</div>
+            ${showRetry ? `<a href="${MAIN_CRM_URL}" class="btn">🏠 메인 CRM 열기</a>` : ''}
+            <button onclick="closePopup()" class="btn"
+                style="background:#999;margin-left:6px;">닫기</button>
+        </div>`;
+}
 
-    const fbConfig = loadFirebaseConfig();
-    if (!fbConfig) {
-        showError(
-            'Firebase 설정이 없습니다.<br>' +
-            '메인 CRM에서 Firebase를 먼저 연결해 주세요.'
-        );
-        return;
-    }
+function renderPopup(phoneNum, matchInfo) {
+    const popup    = document.getElementById('popup');
+    const customer = matchInfo ? matchInfo.customer  : null;
+    const matchType= matchInfo ? matchInfo.matchType : null;
 
-    try {
-        // Firebase 중복 초기화 방지
-        const app = firebase.apps.length
-            ? firebase.apps[0]
-            : firebase.initializeApp(fbConfig);
+    const matchBadgeConfig = {
+        main:   { text: '📱 대표번호',   cls: 'match-main'   },
+        office: { text: '🏢 사무실번호', cls: 'match-office' },
+        phone2: { text: '📞 연락처2',    cls: 'match-phone2' }
+    };
 
-        const db   = firebase.database(app);
-        const snap = await db.ref(FIREBASE_DATA_PATH + '/customers').get();
-        const customers = toArray(snap.val());
+    const matchBadge = matchType && matchBadgeConfig[matchType]
+        ? `<span class="match-badge ${matchBadgeConfig[matchType].cls}">
+               ${matchBadgeConfig[matchType].text} 일치
+           </span>`
+        : '';
 
-        const matched = findCustomer(customers, phoneNum);
+    if (customer) {
+        const services     = extractArrayLike(customer.services);
+        const unpaid       = services
+            .filter(s => s && s.isUnpaid === true)
+            .reduce((sum, s) => sum + (Number(s.price) || 0), 0);
+        const lastService  = [...services]
+            .filter(s => s && s.date)
+            .sort((a, b) => String(b.date).localeCompare(String(a.date)))[0];
+        const serviceCount = services.length;
 
-        if (matched) {
-            renderKnownCustomer(phoneNum, matched);
-        } else {
-            renderUnknownCustomer(phoneNum);
+        function makeReceivedBadge(type) {
+            if (matchType !== type) return '';
+            const cfg = matchBadgeConfig[type];
+            return `<span class="match-badge ${cfg.cls}">수신</span>`;
         }
 
-        playSound();
+        const phoneListHTML = [
+            { label: '📱 대표번호', value: customer.phone,       type: 'main'   },
+            { label: '🏢 사무실',   value: customer.officePhone, type: 'office' },
+            { label: '📞 연락처2',  value: customer.phone2,      type: 'phone2' }
+        ]
+        .filter(p => p.value && String(p.value).trim())
+        .map(p => `
+            <div class="phone-row">
+                <span class="phone-label">${p.label}</span>
+                <span class="phone-num-text">${escapeHtml(p.value)}</span>
+                ${makeReceivedBadge(p.type)}
+            </div>`)
+        .join('');
 
-        // 60초 후 자동 닫기
-        setTimeout(() => closePopup(), 60000);
+        popup.innerHTML = `
+        <div style="background:linear-gradient(135deg,#1a73e8,#0d47a1);
+                    color:white;padding:15px 18px;
+                    display:flex;align-items:center;gap:12px;">
+            <div style="font-size:32px;animation:alarmShake .6s ease 2;">📞</div>
+            <div style="flex:1;min-width:0;">
+                <div style="font-size:11px;opacity:.85;margin-bottom:2px;">📱 수신 전화</div>
+                <div style="font-size:15px;font-weight:800;letter-spacing:.5px;">
+                    ${escapeHtml(phoneNum)}
+                    ${matchBadge}
+                </div>
+            </div>
+            <button onclick="closePopup()"
+                style="background:rgba(255,255,255,.2);color:white;border:none;
+                       border-radius:8px;padding:5px 10px;cursor:pointer;
+                       font-weight:bold;font-size:14px;flex-shrink:0;">✕</button>
+        </div>
 
-    } catch(err) {
-        console.error(err);
-        showError('조회 실패: ' + esc(err.message || String(err)));
+        <div style="background:white;padding:16px 18px;">
+            <div style="display:flex;align-items:center;gap:6px;
+                        flex-wrap:wrap;margin-bottom:10px;">
+                <span style="background:#e8f5e9;color:#2e7d32;font-size:11px;
+                             font-weight:bold;padding:3px 10px;border-radius:999px;
+                             border:1px solid #a5d6a7;">
+                    ✅ 등록 고객${customer.no ? ' · No.' + escapeHtml(String(customer.no)) : ''}
+                </span>
+                <span style="background:#e3f2fd;color:#1565c0;font-size:11px;
+                             font-weight:bold;padding:3px 10px;border-radius:999px;
+                             border:1px solid #90caf9;">
+                    총 ${serviceCount}회 방문
+                </span>
+            </div>
+
+            <div style="font-size:24px;font-weight:900;color:#111;margin-bottom:8px;">
+                ${escapeHtml(customer.name)}
+            </div>
+
+            ${phoneListHTML ? `
+            <div style="background:#f8f9fa;border-radius:8px;
+                        padding:8px 12px;margin-bottom:8px;">
+                ${phoneListHTML}
+            </div>` : ''}
+
+            ${customer.addr ? `
+            <div style="font-size:12px;color:#666;margin-bottom:4px;">
+                📍 ${escapeHtml(customer.addr)}
+            </div>` : ''}
+
+            ${customer.specs ? `
+            <div style="font-size:12px;color:#666;margin-bottom:8px;">
+                🔧 ${escapeHtml(customer.specs)}
+            </div>` : ''}
+
+            ${lastService ? `
+            <div style="background:#f8f9fa;border-left:4px solid #1a73e8;
+                        border-radius:0 8px 8px 0;padding:8px 12px;margin-bottom:10px;">
+                <div style="font-size:11px;color:#888;margin-bottom:2px;">마지막 방문</div>
+                <div style="font-size:13px;font-weight:bold;color:#333;">
+                    📅 ${escapeHtml(lastService.date)}
+                </div>
+                <div style="font-size:12px;color:#555;margin-top:2px;">
+                    ${escapeHtml(String(lastService.content||'').split('\n')[0].slice(0,30))}
+                </div>
+            </div>` : ''}
+
+            ${unpaid > 0 ? `
+            <div style="background:#ffebee;border:1.5px solid #ffcdd2;border-radius:10px;
+                        padding:10px 14px;margin-bottom:12px;
+                        display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-size:13px;color:#c62828;font-weight:bold;">💳 미수금</span>
+                <span style="font-size:18px;font-weight:900;color:#c62828;">
+                    ${unpaid.toLocaleString()}원
+                </span>
+            </div>` : `
+            <div style="background:#e8f5e9;border:1.5px solid #a5d6a7;border-radius:10px;
+                        padding:8px 14px;margin-bottom:12px;text-align:center;">
+                <span style="font-size:12px;color:#2e7d32;font-weight:bold;">✅ 미수금 없음</span>
+            </div>`}
+
+            <div style="display:flex;gap:8px;">
+                <button onclick="openDetail('${escapeHtml(String(customer.id||''))}')"
+                    style="flex:2;padding:13px;
+                           background:linear-gradient(135deg,#1a73e8,#0d47a1);
+                           color:white;border:none;border-radius:12px;
+                           font-size:14px;font-weight:bold;cursor:pointer;">
+                    📋 상세 보기
+                </button>
+                <button onclick="closePopup()"
+                    style="flex:1;padding:13px;background:#f5f5f5;
+                           color:#555;border:1px solid #ddd;
+                           border-radius:12px;font-size:13px;
+                           font-weight:bold;cursor:pointer;">닫기</button>
+            </div>
+        </div>`;
+
+    } else {
+        popup.innerHTML = `
+        <div style="background:linear-gradient(135deg,#f57c00,#e65100);
+                    color:white;padding:15px 18px;
+                    display:flex;align-items:center;gap:12px;">
+            <div style="font-size:32px;animation:alarmShake .6s ease 2;">📞</div>
+            <div style="flex:1;min-width:0;">
+                <div style="font-size:11px;opacity:.85;margin-bottom:2px;">📱 수신 전화</div>
+                <div style="font-size:15px;font-weight:800;letter-spacing:.5px;">
+                    ${escapeHtml(phoneNum)}
+                </div>
+            </div>
+            <button onclick="closePopup()"
+                style="background:rgba(255,255,255,.2);color:white;border:none;
+                       border-radius:8px;padding:5px 10px;cursor:pointer;
+                       font-weight:bold;font-size:14px;flex-shrink:0;">✕</button>
+        </div>
+
+        <div style="background:white;padding:16px 18px;">
+            <div style="text-align:center;margin-bottom:14px;">
+                <div style="font-size:42px;margin-bottom:8px;">❓</div>
+                <div style="font-size:16px;font-weight:800;color:#e65100;">미등록 번호</div>
+                <div style="font-size:13px;color:#888;margin-top:4px;">
+                    저장된 고객 정보가 없습니다
+                </div>
+            </div>
+
+            <div style="background:#fff8f0;border:1.5px solid #ffcc80;border-radius:10px;
+                        padding:10px 14px;margin-bottom:14px;text-align:center;">
+                <div style="font-size:13px;color:#888;margin-bottom:2px;">수신 번호</div>
+                <div style="font-size:20px;font-weight:900;color:#e65100;">
+                    ${escapeHtml(phoneNum)}
+                </div>
+            </div>
+
+            <button onclick="openRegister()"
+                style="width:100%;padding:14px;
+                       background:linear-gradient(135deg,#e65100,#bf360c);
+                       color:white;border:none;border-radius:12px;
+                       font-size:15px;font-weight:bold;
+                       cursor:pointer;margin-bottom:8px;">
+                ➕ 신규 고객으로 등록하기
+            </button>
+
+            <button onclick="closePopup()"
+                style="width:100%;padding:11px;background:#f5f5f5;
+                       color:#555;border:1px solid #ddd;
+                       border-radius:12px;font-size:13px;
+                       font-weight:bold;cursor:pointer;">닫기</button>
+        </div>`;
     }
-})();
+}
+
+function openDetail(customerId) {
+    window.location.href =
+        MAIN_CRM_URL + '?show_detail=' + encodeURIComponent(customerId);
+}
+
+function openRegister() {
+    window.location.href =
+        MAIN_CRM_URL + '?register_phone=' + encodeURIComponent(incomingNum);
+}
 </script>
 </body>
 </html>
