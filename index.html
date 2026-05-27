@@ -1346,6 +1346,36 @@
                 </div>
             </div>
 
+            <!-- ════════════ ★★★ 사무실 번호 (선택) ════════════ -->
+            <div class="form-item">
+                <label>사무실 번호 <span style="font-size:11px;color:#888;">(선택)</span></label>
+                <div class="cust-search-wrap">
+                    <input type="text" id="q-office-phone"
+                           placeholder="02-0000-0000"
+                           autocomplete="off"
+                           oninput="onCalOfficePhoneInput(this.value)"
+                           onkeydown="onCalOfficePhoneKeydown(event)"
+                           onfocus="onCalOfficePhoneInput(this.value)">
+                    <div class="cust-autocomplete"
+                         id="cal-office-phone-autocomplete" style="display:none;"></div>
+                </div>
+            </div>
+
+            <!-- ════════════ ★★★ 연락처2 (선택) ════════════ -->
+            <div class="form-item">
+                <label>연락처2 <span style="font-size:11px;color:#888;">(선택)</span></label>
+                <div class="cust-search-wrap">
+                    <input type="text" id="q-phone2"
+                           placeholder="010-0000-0000"
+                           autocomplete="off"
+                           oninput="onCalPhone2Input(this.value)"
+                           onkeydown="onCalPhone2Keydown(event)"
+                           onfocus="onCalPhone2Input(this.value)">
+                    <div class="cust-autocomplete"
+                         id="cal-phone2-autocomplete" style="display:none;"></div>
+                </div>
+            </div>
+
             <!-- 예약 내용 -->
             <div class="form-item">
                 <label>예약 내용</label>
@@ -6497,6 +6527,17 @@ async function initApp(){
         if(!e.target.closest('#io-stock-name')&&!e.target.closest('#io-stock-autocomplete')) closeStockAc();
         if(!e.target.closest('#quote-history-search')&&!e.target.closest('#quote-history-autocomplete')) closeQuoteHistoryAc();
         if(!e.target.closest('.quote-name-wrap')&&!e.target.closest('.quote-stock-ac')) closeQuoteStockAc();
+        /* ════════════ ★★★ 신규 자동완성 박스 닫기 ════════════ */
+        if(!e.target.closest('#q-office-phone') && !e.target.closest('#cal-office-phone-autocomplete')){
+            const _box1 = document.getElementById('cal-office-phone-autocomplete');
+            if(_box1){ _box1.style.display='none'; _box1.innerHTML=''; }
+            if(typeof calOfficePhoneAcIdx !== 'undefined') calOfficePhoneAcIdx = -1;
+        }
+        if(!e.target.closest('#q-phone2') && !e.target.closest('#cal-phone2-autocomplete')){
+            const _box2 = document.getElementById('cal-phone2-autocomplete');
+            if(_box2){ _box2.style.display='none'; _box2.innerHTML=''; }
+            if(typeof calPhone2AcIdx !== 'undefined') calPhone2AcIdx = -1;
+        }
     });
     autoSyncOnPageLoad();
     await initPWA();   // ← 이 줄만 추가
@@ -6628,7 +6669,7 @@ function getKoreanDate(){return new Date(new Date().getTime()+9*3600000).toISOSt
 function autoHyphenDate(t){let v=t.value.replace(/[^0-9]/g,'');t.value=v.length<5?v:v.length<7?v.slice(0,4)+'-'+v.slice(4):v.slice(0,4)+'-'+v.slice(4,6)+'-'+v.slice(6,8);}
 function formatPhoneNumber(value){const digits=String(value||'').replace(/[^0-9]/g,'').slice(0,11);if(!digits)return '';if(digits.startsWith('02')){if(digits.length<=2)return digits;if(digits.length<=5)return `${digits.slice(0,2)}-${digits.slice(2)}`;if(digits.length<=9)return `${digits.slice(0,2)}-${digits.slice(2,5)}-${digits.slice(5)}`;return `${digits.slice(0,2)}-${digits.slice(2,6)}-${digits.slice(6)}`;}if(digits.length<=3)return digits;if(digits.length<=6)return `${digits.slice(0,3)}-${digits.slice(3)}`;if(digits.length<=10)return `${digits.slice(0,3)}-${digits.slice(3,6)}-${digits.slice(6)}`;return `${digits.slice(0,3)}-${digits.slice(3,7)}-${digits.slice(7)}`;}
 function formatBizNumber(value){const digits=String(value||'').replace(/[^0-9]/g,'').slice(0,10);if(!digits)return '';if(digits.length<=3)return digits;if(digits.length<=5)return `${digits.slice(0,3)}-${digits.slice(3)}`;return `${digits.slice(0,3)}-${digits.slice(3,5)}-${digits.slice(5)}`;}
-function bindAutoFormatInputs(){const bind=(ids,formatter)=>ids.forEach(id=>{const el=document.getElementById(id);if(!el||el.dataset.autoFormatBound==='1')return;el.dataset.autoFormatBound='1';const apply=()=>{el.value=formatter(el.value);};el.addEventListener('input',apply);el.addEventListener('change',apply);apply();});bind(['c-phone','c-office-phone','c-phone2','r-phone','r-office-phone','r-phone2','q-phone','q-receiver-tel','my-tel-1','my-tel-2','my-tel-3'],formatPhoneNumber);bind(['c-biz-num','r-biz-num','my-biz-num-1','my-biz-num-2','my-biz-num-3'],formatBizNumber);}
+function bindAutoFormatInputs(){const bind=(ids,formatter)=>ids.forEach(id=>{const el=document.getElementById(id);if(!el||el.dataset.autoFormatBound==='1')return;el.dataset.autoFormatBound='1';const apply=()=>{el.value=formatter(el.value);};el.addEventListener('input',apply);el.addEventListener('change',apply);apply();});bind(['c-phone','c-office-phone','c-phone2','r-phone','r-office-phone','r-phone2','q-phone','q-office-phone','q-phone2','q-receiver-tel','my-tel-1','my-tel-2','my-tel-3'],formatPhoneNumber);bind(['c-biz-num','r-biz-num','my-biz-num-1','my-biz-num-2','my-biz-num-3'],formatBizNumber);}
 
 /* ★★★ 핵심 수정: searchMatch - 고객/예약/렌탈 통합검색 지원 ★★★ */
 function normalizeSearchText(v){return String(v||'').toLowerCase().replace(/\s+/g,'');}
@@ -7014,29 +7055,59 @@ function onCalSearchInput(val) {
     if (phoneEl && !phoneEl.value.trim()) onCalPhoneInput('');
 }
 function onCalSearchKeydown(e){const box=document.getElementById('cal-autocomplete');const items=box.querySelectorAll('.cust-autocomplete-item');if(!items.length)return;if(e.key==='ArrowDown'){e.preventDefault();calAcIdx=Math.min(calAcIdx+1,items.length-1);highlightAc(items,calAcIdx);}else if(e.key==='ArrowUp'){e.preventDefault();calAcIdx=Math.max(calAcIdx-1,0);highlightAc(items,calAcIdx);}else if(e.key==='Enter'&&calAcIdx>=0){e.preventDefault();const id=items[calAcIdx].getAttribute('onclick').match(/'([^']+)'/)[1];selectCalCustomer(id);}else if(e.key==='Escape')closeCalAc();}
+/* ════════════════════════════════════════════════════════
+   ★★★ selectCalCustomer - 고객 선택 시 3개 번호 모두 채움
+   ════════════════════════════════════════════════════════ */
 function selectCalCustomer(source, id) {
-    let name = '', phone = '';
+    let name = '', phone = '', officePhone = '', phone2 = '';
 
     if (source === 'rental') {
         const r = rentals.find(x => String(x.id) === String(id));
-        if (r) { name = r.name || ''; phone = r.phone || ''; }
+        if (r) {
+            name        = r.name        || '';
+            phone       = r.phone       || '';
+            officePhone = r.officePhone || '';
+            phone2      = r.phone2      || '';
+        }
     } else {
         const c = customers.find(x => String(x.id) === String(id));
-        if (c) { name = c.name || ''; phone = c.phone || ''; }
+        if (c) {
+            name        = c.name        || '';
+            phone       = c.phone       || '';
+            officePhone = c.officePhone || '';
+            phone2      = c.phone2      || '';
+        }
     }
 
-    document.getElementById('q-name').value = name;
+    document.getElementById('q-name').value  = name;
     document.getElementById('q-phone').value = phone;
+
+    /* ★ 사무실번호 / 연락처2 자동 채움 */
+    const officeEl = document.getElementById('q-office-phone');
+    const phone2El = document.getElementById('q-phone2');
+    if (officeEl) officeEl.value = officePhone;
+    if (phone2El) phone2El.value = phone2;
+
     closeCalAc();
     isFormDirty = true;
     onCalPhoneInput(phone);
 }
+/* ════════════════════════════════════════════════════════
+   ★★★ closeCalAc - 4개 자동완성 박스 모두 닫기
+   ════════════════════════════════════════════════════════ */
 function closeCalAc(){
-    document.getElementById('cal-autocomplete').style.display='none';
-    const phoneBox = document.getElementById('cal-phone-autocomplete');
-    if (phoneBox) phoneBox.style.display = 'none';
-    calAcIdx = -1;
-    calPhoneAcIdx = -1;
+    ['cal-autocomplete',
+     'cal-phone-autocomplete',
+     'cal-office-phone-autocomplete',
+     'cal-phone2-autocomplete'
+    ].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.style.display = 'none'; el.innerHTML = ''; }
+    });
+    calAcIdx            = -1;
+    calPhoneAcIdx       = -1;
+    if(typeof calOfficePhoneAcIdx !== 'undefined') calOfficePhoneAcIdx = -1;
+    if(typeof calPhone2AcIdx      !== 'undefined') calPhone2AcIdx      = -1;
 }
 
 // ── 달력 빠른 예약: 연락처 자동완성 ──
@@ -7140,6 +7211,9 @@ function onCalPhoneKeydown(e) {
     }
 }
 
+/* ════════════════════════════════════════════════════════
+   ★★★ selectCalPhone - 연락처 자동완성 선택 시 3개 번호 모두 채움
+   ════════════════════════════════════════════════════════ */
 function selectCalPhone(source, name) {
     // 이름으로 후보 찾기 (customers + rentals)
     let found = customers.find(c => c.name === name);
@@ -7147,10 +7221,263 @@ function selectCalPhone(source, name) {
     if (!found) { closeCalAc(); return; }
 
     document.getElementById('q-phone').value = found.phone || '';
+
+    /* ★ 사무실번호 / 연락처2 자동 채움 */
+    const officeEl = document.getElementById('q-office-phone');
+    const phone2El = document.getElementById('q-phone2');
+    if (officeEl) officeEl.value = found.officePhone || '';
+    if (phone2El) phone2El.value = found.phone2      || '';
+
     const nameEl = document.getElementById('q-name');
     if (!nameEl.value.trim()) nameEl.value = found.name || '';
     closeCalAc();
     isFormDirty = true;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   ★★★ 사무실번호 / 연락처2 자동완성 - 신규 함수 블록 시작
+   ════════════════════════════════════════════════════════════════════ */
+let calOfficePhoneAcIdx = -1;
+let calPhone2AcIdx      = -1;
+
+/* ── 사무실번호 자동완성 입력 ── */
+function onCalOfficePhoneInput(val) {
+    calOfficePhoneAcIdx = -1;
+    const box = document.getElementById('cal-office-phone-autocomplete');
+    if (!box) return;
+
+    const nameEl  = document.getElementById('q-name');
+    const nameVal = nameEl ? nameEl.value.trim() : '';
+    const raw = String(val || '').trim();
+    const nk  = raw.replace(/[^0-9]/g, '');
+
+    const allCandidates = [];
+    const seen = new Set();
+    const addCandidate = (name, phone, source) => {
+        if (!phone) return;
+        const k = String(phone).replace(/[^0-9]/g, '');
+        if (seen.has(k)) return;
+        seen.add(k);
+        allCandidates.push({ name, phone, source });
+    };
+    customers.forEach(c => {
+        addCandidate(c.name, c.officePhone, 'customer');
+        addCandidate(c.name, c.phone,       'customer');
+        addCandidate(c.name, c.phone2,      'customer');
+    });
+    rentals.forEach(r => {
+        addCandidate(r.name, r.officePhone, 'rental');
+        addCandidate(r.name, r.phone,       'rental');
+        addCandidate(r.name, r.phone2,      'rental');
+    });
+
+    let candidates = allCandidates;
+    if (nameVal) {
+        const kName = nameVal.toLowerCase().replace(/\s+/g, '');
+        candidates = allCandidates.filter(c =>
+            String(c.name || '').toLowerCase().replace(/\s+/g, '').includes(kName)
+        );
+    }
+
+    let matched = [];
+    if (raw) {
+        matched = candidates.filter(c => {
+            const d = String(c.phone || '').replace(/[^0-9]/g, '');
+            return d.includes(nk);
+        }).slice(0, 8);
+    } else if (nameVal) {
+        matched = candidates.filter(c => c.phone).slice(0, 8);
+    } else {
+        box.style.display = 'none';
+        return;
+    }
+    if (!matched.length) { box.style.display = 'none'; return; }
+
+    box.innerHTML = matched.map((c, i) => {
+        const badge = c.source === 'rental'
+            ? `<span style="background:#e8eaf6;color:var(--indigo);font-size:10px;padding:1px 5px;border-radius:6px;font-weight:bold;margin-left:4px;">렌탈</span>`
+            : '';
+        return `<div class="cust-autocomplete-item"
+                     onmousedown="event.preventDefault()"
+                     onclick="selectCalOfficePhone('${c.source}','${(c.name||'').replace(/'/g,"\\'")}')"
+                     data-idx="${i}">
+            <span class="cust-name">${escapeHtml(c.phone || '-')}${badge}</span>
+            <span class="cust-info">${escapeHtml(c.name || '')}</span>
+        </div>`;
+    }).join('');
+    box.style.display = 'block';
+}
+
+function onCalOfficePhoneKeydown(e) {
+    const box   = document.getElementById('cal-office-phone-autocomplete');
+    const items = box.querySelectorAll('.cust-autocomplete-item');
+    if (!items.length) return;
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        calOfficePhoneAcIdx = Math.min(calOfficePhoneAcIdx + 1, items.length - 1);
+        highlightAc(items, calOfficePhoneAcIdx);
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        calOfficePhoneAcIdx = Math.max(calOfficePhoneAcIdx - 1, 0);
+        highlightAc(items, calOfficePhoneAcIdx);
+    } else if (e.key === 'Enter' && calOfficePhoneAcIdx >= 0) {
+        e.preventDefault();
+        const name = items[calOfficePhoneAcIdx]
+            .getAttribute('onclick').match(/'([^']+)'[^']*$/)?.[1] || '';
+        selectCalOfficePhone('', name);
+    } else if (e.key === 'Escape') {
+        closeCalAc();
+    }
+}
+
+function selectCalOfficePhone(source, name) {
+    let found = customers.find(c => c.name === name);
+    if (!found) found = rentals.find(r => r.name === name);
+    if (!found) { closeCalAc(); return; }
+
+    const officeEl = document.getElementById('q-office-phone');
+    const nameEl   = document.getElementById('q-name');
+    const phoneEl  = document.getElementById('q-phone');
+    const phone2El = document.getElementById('q-phone2');
+
+    if (officeEl) officeEl.value = found.officePhone || found.phone || '';
+    if (nameEl   && !nameEl.value.trim())   nameEl.value   = found.name        || '';
+    if (phoneEl  && !phoneEl.value.trim())  phoneEl.value  = found.phone       || '';
+    if (phone2El && !phone2El.value.trim()) phone2El.value = found.phone2      || '';
+
+    closeCalAc();
+    isFormDirty = true;
+}
+
+/* ── 연락처2 자동완성 입력 ── */
+function onCalPhone2Input(val) {
+    calPhone2AcIdx = -1;
+    const box = document.getElementById('cal-phone2-autocomplete');
+    if (!box) return;
+
+    const nameEl  = document.getElementById('q-name');
+    const nameVal = nameEl ? nameEl.value.trim() : '';
+    const raw = String(val || '').trim();
+    const nk  = raw.replace(/[^0-9]/g, '');
+
+    const allCandidates = [];
+    const seen = new Set();
+    const addCandidate = (name, phone, source) => {
+        if (!phone) return;
+        const k = String(phone).replace(/[^0-9]/g, '');
+        if (seen.has(k)) return;
+        seen.add(k);
+        allCandidates.push({ name, phone, source });
+    };
+    customers.forEach(c => {
+        addCandidate(c.name, c.phone2,      'customer');
+        addCandidate(c.name, c.phone,       'customer');
+        addCandidate(c.name, c.officePhone, 'customer');
+    });
+    rentals.forEach(r => {
+        addCandidate(r.name, r.phone2,      'rental');
+        addCandidate(r.name, r.phone,       'rental');
+        addCandidate(r.name, r.officePhone, 'rental');
+    });
+
+    let candidates = allCandidates;
+    if (nameVal) {
+        const kName = nameVal.toLowerCase().replace(/\s+/g, '');
+        candidates = allCandidates.filter(c =>
+            String(c.name || '').toLowerCase().replace(/\s+/g, '').includes(kName)
+        );
+    }
+
+    let matched = [];
+    if (raw) {
+        matched = candidates.filter(c => {
+            const d = String(c.phone || '').replace(/[^0-9]/g, '');
+            return d.includes(nk);
+        }).slice(0, 8);
+    } else if (nameVal) {
+        matched = candidates.filter(c => c.phone).slice(0, 8);
+    } else {
+        box.style.display = 'none';
+        return;
+    }
+    if (!matched.length) { box.style.display = 'none'; return; }
+
+    box.innerHTML = matched.map((c, i) => {
+        const badge = c.source === 'rental'
+            ? `<span style="background:#e8eaf6;color:var(--indigo);font-size:10px;padding:1px 5px;border-radius:6px;font-weight:bold;margin-left:4px;">렌탈</span>`
+            : '';
+        return `<div class="cust-autocomplete-item"
+                     onmousedown="event.preventDefault()"
+                     onclick="selectCalPhone2('${c.source}','${(c.name||'').replace(/'/g,"\\'")}')"
+                     data-idx="${i}">
+            <span class="cust-name">${escapeHtml(c.phone || '-')}${badge}</span>
+            <span class="cust-info">${escapeHtml(c.name || '')}</span>
+        </div>`;
+    }).join('');
+    box.style.display = 'block';
+}
+
+function onCalPhone2Keydown(e) {
+    const box   = document.getElementById('cal-phone2-autocomplete');
+    const items = box.querySelectorAll('.cust-autocomplete-item');
+    if (!items.length) return;
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        calPhone2AcIdx = Math.min(calPhone2AcIdx + 1, items.length - 1);
+        highlightAc(items, calPhone2AcIdx);
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        calPhone2AcIdx = Math.max(calPhone2AcIdx - 1, 0);
+        highlightAc(items, calPhone2AcIdx);
+    } else if (e.key === 'Enter' && calPhone2AcIdx >= 0) {
+        e.preventDefault();
+        const name = items[calPhone2AcIdx]
+            .getAttribute('onclick').match(/'([^']+)'[^']*$/)?.[1] || '';
+        selectCalPhone2('', name);
+    } else if (e.key === 'Escape') {
+        closeCalAc();
+    }
+}
+
+function selectCalPhone2(source, name) {
+    let found = customers.find(c => c.name === name);
+    if (!found) found = rentals.find(r => r.name === name);
+    if (!found) { closeCalAc(); return; }
+
+    const phone2El = document.getElementById('q-phone2');
+    const nameEl   = document.getElementById('q-name');
+    const phoneEl  = document.getElementById('q-phone');
+    const officeEl = document.getElementById('q-office-phone');
+
+    if (phone2El) phone2El.value = found.phone2 || found.phone || '';
+    if (nameEl   && !nameEl.value.trim())   nameEl.value   = found.name        || '';
+    if (phoneEl  && !phoneEl.value.trim())  phoneEl.value  = found.phone       || '';
+    if (officeEl && !officeEl.value.trim()) officeEl.value = found.officePhone || '';
+
+    closeCalAc();
+    isFormDirty = true;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   ★★★ 사무실번호 / 연락처2 자동완성 - 신규 함수 블록 끝
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ════════════════════════════════════════════════════════════════════
+   ★★★ makeAllContactButtons - 3개 연락처 모두 렌더링 헬퍼
+   ════════════════════════════════════════════════════════════════════ */
+function makeAllContactButtons(c) {
+    return `
+        ${makeContactButtons(c.phone, c.name, 'inline', c.kakaoLink || '')}
+        ${c.officePhone ? `
+        <div style="margin-top:3px;font-size:11px;color:#555;
+                    display:flex;align-items:center;gap:4px;">
+            🏢 ${makeContactButtons(c.officePhone, c.name, 'inline', c.kakaoLink || '')}
+        </div>` : ''}
+        ${c.phone2 ? `
+        <div style="margin-top:3px;font-size:11px;color:#555;
+                    display:flex;align-items:center;gap:4px;">
+            📱 ${makeContactButtons(c.phone2, c.name, 'inline', c.kakaoLink || '')}
+        </div>` : ''}`;
 }
 function normalizeQuoteLookupText(v){return String(v||'').toLowerCase().replace(/\s+/g,'').trim();}
 function normalizeQuoteLookupPhone(v){return String(v||'').replace(/[^0-9]/g,'');}
@@ -10366,7 +10693,7 @@ function showDayDetail(dateStr, prefix='') {
     <!-- 하단: 연락처 + 캘린더 저장 -->
     <div style="padding-left:18px;margin-top:8px;"
          onclick="event.stopPropagation()">
-        ${makeContactButtons(c.phone, c.name, 'inline', c.kakaoLink || '')}
+        ${makeAllContactButtons(c)}
         <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;">
             <button onclick="event.stopPropagation();
                 openCalendarSaveModal('${s.date}','${safeN2}','${safeC2}','${safeM2}','${safeT2}');"
@@ -10404,6 +10731,10 @@ function saveQuickReservation() {
     const m  = document.getElementById('q-memo').value.trim();
     // ★ 추가: 시간 + 알람 여부
     const qt = document.getElementById('q-time')?.value || '';
+
+    /* ════════ ★★★ 사무실번호 / 연락처2 읽기 ════════ */
+    const officePhone = document.getElementById('q-office-phone')?.value.trim() || '';
+    const phone2      = document.getElementById('q-phone2')?.value.trim()       || '';
 
     if (!n)  return alert("고객명을 입력해주세요.");
     if (!ct) return alert("예약 내용을 입력해주세요.");
@@ -10444,11 +10775,18 @@ function saveQuickReservation() {
         }
         customer = {
             id: newId, no: cNo, date: getKoreanDate(),
-            name: n, phone: p || '',
+            name:        n,
+            phone:       p           || '',
+            officePhone: officePhone || '', /* ★ 신규 고객 - 사무실번호 */
+            phone2:      phone2      || '', /* ★ 신규 고객 - 연락처2 */
             addr:'', bizNum:'', bizType:'', bizItem:'',
             email:'', kakaoLink:'', specs:'', services:[]
         };
         customers.push(customer);
+    } else {
+        /* ★ 기존 고객 - 비어있는 번호만 업데이트 */
+        if (!customer.officePhone && officePhone) customer.officePhone = officePhone;
+        if (!customer.phone2      && phone2)      customer.phone2      = phone2;
     }
 
     if (!customer.services) customer.services = [];
@@ -10497,8 +10835,12 @@ function clearQuickForm(){
     isFormDirty = false;
     document.getElementById('q-date').value  = getKoreanDate();
     document.getElementById('q-time').value  = '';   // ★ 추가
-    ['q-name','q-phone','q-content','q-memo']
-        .forEach(id => document.getElementById(id).value = '');
+    /* ★ 사무실번호 / 연락처2 포함 초기화 */
+    ['q-name','q-phone','q-office-phone','q-phone2','q-content','q-memo']
+        .forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+        });
     closeCalAc();
 }
 function renderUnprocessedSummary(){const kw=document.getElementById('searchInp').value.trim();const tb=document.getElementById('unprocessedListTable');if(!tb)return;tb.innerHTML='';let recs=[];customers.forEach(c=>{if(c.services)c.services.forEach(s=>{if(s.isCompleted===false&&(!kw||reservationSearchMatch(c,s,kw)))recs.push({...s,n:c.name,cId:c.id,cNo:c.no});});});if(!recs.length){tb.innerHTML=`<tr><td colspan='6' style='padding:20px;'>${kw?'검색 조건에 맞는 미처리/예약 내역이 없습니다.':'미처리 내역이 없습니다! 🎉'}</td></tr>`;return;}recs.sort((a,b)=>`${a.date||''}T${a.reservationTime||''}`.localeCompare(`${b.date||''}T${b.reservationTime||''}`)).forEach(s=>{const dc=s.content?s.content.replace(/[\n,]+/g,', '):'';const dateTime=s.reservationTime?`${s.date}<div style="font-size:11px;color:var(--danger);font-weight:bold;margin-top:4px;">⏰ ${s.reservationTime}</div>`:s.date;tb.insertRow().innerHTML=`<td><span class="no-clickable" onclick="executeWithDirtyCheck(function(){showDetail(${Number(s.cId)})})">${s.cNo}</span></td><td>${dateTime}</td><td><b>${s.n}</b></td><td style="text-align:left;">${dc}</td><td style="color:#666;">${s.memo||'-'}</td><td style="color:var(--danger);font-weight:bold;">처리중</td>`;});}
@@ -11687,6 +12029,28 @@ function buildDqaFormHTML(dateStr) {
             </div>
         </div>
 
+        <!-- ════════ ★★★ 사무실번호 / 연락처2 ════════ -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:9px;">
+            <div class="form-item" style="position:relative;">
+                <label style="font-size:12px;font-weight:bold;color:#555;margin-bottom:3px;display:block;">
+                    사무실 번호
+                </label>
+                <input type="text" id="dqa-office-phone-${key}"
+                    placeholder="02-0000-0000"
+                    autocomplete="off"
+                    style="padding:9px 11px;border:1.5px solid #b2dfdb;border-radius:8px;font-size:13px;font-family:inherit;width:100%;box-sizing:border-box;">
+            </div>
+            <div class="form-item" style="position:relative;">
+                <label style="font-size:12px;font-weight:bold;color:#555;margin-bottom:3px;display:block;">
+                    연락처2
+                </label>
+                <input type="text" id="dqa-phone2-${key}"
+                    placeholder="010-0000-0000"
+                    autocomplete="off"
+                    style="padding:9px 11px;border:1.5px solid #b2dfdb;border-radius:8px;font-size:13px;font-family:inherit;width:100%;box-sizing:border-box;">
+            </div>
+        </div>
+
         <!-- 시간 + 알람 한 줄 -->
         <div style="display:flex;align-items:center;gap:10px;
                     background:#f0faf9;border:1.5px solid #b2dfdb;
@@ -11869,21 +12233,37 @@ function onDqaNameKeydown(key, e) {
     }
 }
 
+/* ════════ ★★★ selectDqaCustomerByName - 3개 번호 모두 채움 ════════ */
 function selectDqaCustomerByName(key, source, id) {
-    let name = '', phone = '';
+    let name = '', phone = '', officePhone = '', phone2 = '';
 
     if (source === 'rental') {
         const r = rentals.find(x => String(x.id) === String(id));
-        if (r) { name = r.name || ''; phone = r.phone || ''; }
+        if (r) {
+            name        = r.name        || '';
+            phone       = r.phone       || '';
+            officePhone = r.officePhone || '';
+            phone2      = r.phone2      || '';
+        }
     } else {
         const c = customers.find(x => String(x.id) === String(id));
-        if (c) { name = c.name || ''; phone = c.phone || ''; }
+        if (c) {
+            name        = c.name        || '';
+            phone       = c.phone       || '';
+            officePhone = c.officePhone || '';
+            phone2      = c.phone2      || '';
+        }
     }
 
-    const nameEl  = document.getElementById(`dqa-name-${key}`);
-    const phoneEl = document.getElementById(`dqa-phone-${key}`);
-    if (nameEl)  nameEl.value  = name;
+    const nameEl        = document.getElementById(`dqa-name-${key}`);
+    const phoneEl       = document.getElementById(`dqa-phone-${key}`);
+    const officePhoneEl = document.getElementById(`dqa-office-phone-${key}`);
+    const phone2El      = document.getElementById(`dqa-phone2-${key}`);
+
+    if (nameEl)        nameEl.value        = name;
     if (phoneEl && !phoneEl.value.trim()) phoneEl.value = phone;
+    if (officePhoneEl) officePhoneEl.value = officePhone; /* ★ */
+    if (phone2El)      phone2El.value      = phone2;      /* ★ */
 
     closeDqaNameAc(key);
     document.getElementById(`dqa-content-${key}`)?.focus();
@@ -11990,6 +12370,7 @@ function onDqaPhoneKeydown(key, e) {
     }
 }
 
+/* ════════ ★★★ selectDqaCustomerByPhone - 3개 번호 모두 채움 ════════ */
 function selectDqaCustomerByPhone(key, source, name) {
     // 이름 기준으로 해당 source에서 찾기, 없으면 반대쪽도 검색
     let found = null;
@@ -12005,10 +12386,15 @@ function selectDqaCustomerByPhone(key, source, name) {
     }
     if (!found) { closeDqaPhoneAc(key); return; }
 
-    const phoneEl = document.getElementById(`dqa-phone-${key}`);
-    const nameEl  = document.getElementById(`dqa-name-${key}`);
-    if (phoneEl) phoneEl.value = found.phone || '';
-    if (nameEl && !nameEl.value.trim()) nameEl.value = found.name || '';
+    const phoneEl       = document.getElementById(`dqa-phone-${key}`);
+    const nameEl        = document.getElementById(`dqa-name-${key}`);
+    const officePhoneEl = document.getElementById(`dqa-office-phone-${key}`);
+    const phone2El      = document.getElementById(`dqa-phone2-${key}`);
+
+    if (phoneEl)       phoneEl.value       = found.phone       || '';
+    if (nameEl  && !nameEl.value.trim()) nameEl.value = found.name || '';
+    if (officePhoneEl) officePhoneEl.value = found.officePhone || ''; /* ★ */
+    if (phone2El)      phone2El.value      = found.phone2      || ''; /* ★ */
 
     closeDqaPhoneAc(key);
     document.getElementById(`dqa-content-${key}`)?.focus();
@@ -12642,9 +13028,12 @@ function toggleDqaAlarm(key){
 
 // ── 대시보드 인라인 폼 저장 (시간+알람 포함) ──
 function saveDqaFormWithTime(dateStr){
-    const key     = dateStr.replace(/-/g, '');
-    const nameVal = (document.getElementById(`dqa-name-${key}`)?.value    || '').trim();
-    const phone   = (document.getElementById(`dqa-phone-${key}`)?.value   || '').trim();
+    const key         = dateStr.replace(/-/g, '');
+    const nameVal     = (document.getElementById(`dqa-name-${key}`)?.value    || '').trim();
+    const phone       = (document.getElementById(`dqa-phone-${key}`)?.value   || '').trim();
+    /* ════════ ★★★ 사무실번호 / 연락처2 읽기 ════════ */
+    const officePhone = (document.getElementById(`dqa-office-phone-${key}`)?.value || '').trim();
+    const phone2      = (document.getElementById(`dqa-phone2-${key}`)?.value      || '').trim();
     const content = (document.getElementById(`dqa-content-${key}`)?.value || '').trim();
     const timeVal = (document.getElementById(`dqa-time-${key}`)?.value    || '').trim();
 
@@ -12688,12 +13077,19 @@ function saveDqaFormWithTime(dateStr){
         customer = {
             id: newId, no: cNo,
             date: getKoreanDate(),
-            name: nameVal, phone: phone || '',
+            name:        nameVal,
+            phone:       phone       || '',
+            officePhone: officePhone || '', /* ★ 신규 고객 - 사무실번호 */
+            phone2:      phone2      || '', /* ★ 신규 고객 - 연락처2 */
             addr:'', bizNum:'', bizType:'', bizItem:'',
             email:'', kakaoLink:'', specs:'',
             services:[]
         };
         customers.push(customer);
+    } else {
+        /* ★ 기존 고객 - 비어있는 번호만 업데이트 */
+        if (!customer.officePhone && officePhone) customer.officePhone = officePhone;
+        if (!customer.phone2      && phone2)      customer.phone2      = phone2;
     }
 
     if(!customer.services) customer.services = [];
@@ -15073,6 +15469,7 @@ function openInChrome() {
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/vcd15cbe7772f49c399c6a5babf22c1241717689176015" integrity="sha512-ZpsOmlRQV6y907TI0dKBHq9Md29nnaEIPlkf84rnaERnq6zvWvPUqr2ft8M1aS28oN72PdrCzSjY4U6VaAw1EQ==" data-cf-beacon='{"rayId":"9fb18930984fe879","serverTiming":{"name":{"cfExtPri":true,"cfEdge":true,"cfOrigin":true,"cfL4":true,"cfSpeedBrain":true,"cfCacheStatus":true}},"version":"2025.9.1","token":"4edd5f8ec12a48cfa682ab8261b80a79"}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
