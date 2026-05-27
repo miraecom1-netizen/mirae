@@ -638,6 +638,106 @@
     .tax-btn{min-width:100px;font-size:12px;}
 }
 
+/* ════════════════════════════════════════════════════════════
+   📱 모바일 달력 오버플로우 수정 (v4 패치)
+════════════════════════════════════════════════════════════ */
+
+/* 달력 전체 래퍼 - 가로 스크롤 차단 */
+.chart-container.dash-calendar-wrapper,
+#calendarArea {
+    overflow-x: hidden;
+    width: 100%;
+    max-width: 100%;
+}
+
+@media (max-width: 760px) {
+    /* ── 달력 그리드 ── */
+    .calendar-grid {
+        gap: 2px !important;
+    }
+    /* ── 달력 셀 ── */
+    .cal-cell {
+        min-height: 52px !important;
+        padding: 2px !important;
+        border-radius: 4px !important;
+        overflow: hidden !important;
+        max-width: 100% !important;
+    }
+    /* ── 날짜 숫자 ── */
+    .cal-date-num {
+        font-size: 11px !important;
+        margin-bottom: 1px !important;
+    }
+    /* ── 공휴일 이름 ── */
+    .cal-holiday-name {
+        font-size: 8px !important;
+        max-width: 55% !important;
+        line-height: 1.1 !important;
+    }
+    /* ── 일정 배지 ── */
+    .sch-badge {
+        font-size: 8px !important;
+        padding: 1px 3px !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        max-width: 100% !important;
+        display: block !important;
+    }
+    /* ── 헤더 셀 ── */
+    .cal-header-cell {
+        font-size: 10px !important;
+        padding: 6px 2px !important;
+    }
+    /* ── 달력 상단 헤더 ── */
+    .dash-calendar-header {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 8px !important;
+    }
+    .cal-controls {
+        gap: 10px !important;
+        width: 100% !important;
+        justify-content: center !important;
+    }
+    .cal-controls h3 {
+        font-size: 15px !important;
+        width: auto !important;
+    }
+    /* ── 날짜 상세 박스 ── */
+    .day-detail-box {
+        padding: 10px !important;
+    }
+    /* ── 달력 영역 자체 너비 제한 ── */
+    #calendarArea,
+    #dashboardArea .chart-container {
+        overflow-x: hidden !important;
+        box-sizing: border-box !important;
+    }
+    /* ── 컨테이너 패딩 축소 ── */
+    .container {
+        padding: 10px 8px !important;
+    }
+}
+
+/* 초소형 화면 (390px 이하 아이폰 SE 등) */
+@media (max-width: 390px) {
+    .calendar-grid {
+        gap: 1px !important;
+    }
+    .cal-cell {
+        min-height: 44px !important;
+        padding: 1px !important;
+    }
+    .sch-badge {
+        font-size: 7px !important;
+        padding: 1px 2px !important;
+    }
+    .cal-date-num {
+        font-size: 10px !important;
+    }
+}
+
 </style>
 </head>
 <body>
@@ -10254,6 +10354,10 @@ function renderCalendarView(prefix=''){
         const td = `${currentCalYear}-${String(currentCalMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
         let sch = '';
 
+        /* ════════════════════════════════════════════
+           📌 배지 수집 → 모바일에서 +N건으로 축약 표시
+        ════════════════════════════════════════════ */
+        let schItems = [];
         customers.forEach(c => {
             if(!c.services) return;
             c.services.forEach(s => {
@@ -10279,12 +10383,22 @@ function renderCalendarView(prefix=''){
                 const rentalMark = isRental
                     ? `<span style="font-size:9px;opacity:.85;">🖨️</span>` : '';
 
-                sch += `<div class="sch-badge ${cls}">
-                    ${s.reservationTime ? `⏰ ${s.reservationTime} ` : ''}
-                    ${rentalMark}${c.name}
-                </div>`;
+                schItems.push({
+                    cls,
+                    label: `${s.reservationTime ? `⏰ ${s.reservationTime} ` : ''}${rentalMark}${c.name}`
+                });
             });
         });
+
+        /* 화면 크기별 최대 표시 개수 결정 */
+        const maxVisible = window.innerWidth <= 390 ? 1
+                          : (window.innerWidth <= 760 ? 2 : 99);
+        schItems.slice(0, maxVisible).forEach(item => {
+            sch += `<div class="sch-badge ${item.cls}">${item.label}</div>`;
+        });
+        if(schItems.length > maxVisible) {
+            sch += `<div class="sch-badge" style="background:#888;color:#fff;font-size:7px;">+${schItems.length - maxVisible}건</div>`;
+        }
 
         const isToday    = td === getKoreanDate() ? 'today' : '';
         const weekday    = new Date(currentCalYear, currentCalMonth, day).getDay();
@@ -15469,6 +15583,7 @@ function openInChrome() {
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/vcd15cbe7772f49c399c6a5babf22c1241717689176015" integrity="sha512-ZpsOmlRQV6y907TI0dKBHq9Md29nnaEIPlkf84rnaERnq6zvWvPUqr2ft8M1aS28oN72PdrCzSjY4U6VaAw1EQ==" data-cf-beacon='{"rayId":"9fb18930984fe879","serverTiming":{"name":{"cfExtPri":true,"cfEdge":true,"cfOrigin":true,"cfL4":true,"cfSpeedBrain":true,"cfCacheStatus":true}},"version":"2025.9.1","token":"4edd5f8ec12a48cfa682ab8261b80a79"}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
