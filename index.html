@@ -1666,6 +1666,10 @@
                 <button type="button" class="quote-photo-btn" onclick="addQuotePhotoItem()">➕ 빈 사진 카드 추가</button>
                 <button type="button" class="quote-photo-btn" onclick="clearQuotePhotoSheet()">🧹 사진대지 비우기</button>
                 <button type="button" class="quote-photo-btn" onclick="printQuotePhotoSheet()">🖼️ 사진대지 인쇄</button>
+                <button type="button" class="quote-photo-btn primary" onclick="saveQuotePhotoSheetStandalone()"
+                        style="background:#1565c0;border-color:#1565c0;">
+                    💾 사진대지 저장
+                </button>
             </div>
             <div id="quotePhotoList" class="quote-photo-list"></div>
         </div>
@@ -1732,6 +1736,27 @@
             <div class="table-wrap">
                 <table class="quote-history-table"><thead><tr><th>No.</th><th>견적일</th><th>수신처</th><th>건명</th><th>합계금액</th><th>사업자</th><th>사진</th><th>관리</th></tr></thead>
                 <tbody id="quoteHistoryBody"></tbody></table>
+            </div>
+        </div>
+        <!-- ★ 사진대지 독립 이력 섹션 ════════════ -->
+        <div style="border-top:2px solid #bbdefb;padding-top:13px;margin-top:20px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;gap:8px;flex-wrap:wrap;">
+                <h3 style="margin:0;color:#1565c0;">🖼️ 저장된 사진대지 이력</h3>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th width="6%">No.</th>
+                            <th width="12%">저장일</th>
+                            <th width="30%">제목 / 수신처</th>
+                            <th width="10%">사진 수</th>
+                            <th width="16%">촬영장소</th>
+                            <th width="26%">관리</th>
+                        </tr>
+                    </thead>
+                    <tbody id="photoSheetHistoryBody"></tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -3243,7 +3268,8 @@ const LOCAL_KEYS={
     myInfo:'crm_myInfo_v1',
     quotes:'crm_quotes_v1',
     stock:'crm_stock_v1',
-    stockCats:'crm_stock_cats_v1'
+    stockCats:'crm_stock_cats_v1',
+    photoSheets:'crm_photo_sheets_v1'   // ★ 추가
 };
 const FIREBASE_DATA_PATH='tech_crm/appData';
 const LEGACY_FIREBASE_PATHS=['it_crm_v3'];
@@ -4014,6 +4040,7 @@ function normalizeBizInfo(raw){
     normalized.globalKakaoLink=normalized.globalKakaoLink||src.globalKakaoLink||'';
     return normalized;
 }
+/* ════════════ ★ writeLocalSnapshot — photoSheets 포함 ════════════ */
 function writeLocalSnapshot(){
     localStorage.setItem(LOCAL_KEYS.customers,JSON.stringify(customers));
     localStorage.setItem(LOCAL_KEYS.rentals,JSON.stringify(rentals));
@@ -4021,6 +4048,7 @@ function writeLocalSnapshot(){
     localStorage.setItem(LOCAL_KEYS.quotes,JSON.stringify(quotes));
     localStorage.setItem(LOCAL_KEYS.stock,JSON.stringify(stockItems));
     localStorage.setItem(LOCAL_KEYS.stockCats,JSON.stringify(stockCategories));
+    localStorage.setItem(LOCAL_KEYS.photoSheets,JSON.stringify(photoSheets));  // ★ 추가
     localStorage.setItem(ACCESS_SETTINGS_KEY,JSON.stringify(createAccessSettingsSnapshot()));
 }
 
@@ -4075,6 +4103,7 @@ function normalizeCustomerRecord(customer,index=0){
         services:mergeServiceLists([],extractArrayLike(servicesSource))
     };
 }
+/* ════════════ ★ canonicalizeAppData — photoSheets 복원 ════════════ */
 function canonicalizeAppData(payload){
     const data=(payload&&typeof payload==='object')?payload:{};
     const bizInfoSource=data.myBizInfo||data.bizInfo||(data.myInfo||data.myInfo2?{biz1:data.myInfo||{},biz2:data.myInfo2||{},biz3:{}}:null)||DEFAULT_BIZ_INFO();
@@ -4085,6 +4114,7 @@ function canonicalizeAppData(payload){
         stockItems:extractArrayLike(data.stockItems),
         stockCategories:(data.stockCategories&&typeof data.stockCategories==='object')?data.stockCategories:DEFAULT_STOCK_CATEGORIES(),
         myBizInfo:normalizeBizInfo(bizInfoSource),
+        photoSheets:Array.isArray(data.photoSheets)?data.photoSheets:[],   // ★ 추가
         accessSettings:data.accessSettings||null
     };
 }
@@ -4197,6 +4227,7 @@ function findAppDataCandidate(payload,depth=0){
     }
     return null;
 }
+/* ════════════ ★ getCanonicalAppStateFromPayload — photoSheets 포함 ════════════ */
 function getCanonicalAppStateFromPayload(payload){
     const data=canonicalizeAppData(findAppDataCandidate(payload)||payload);
     return {
@@ -4206,9 +4237,11 @@ function getCanonicalAppStateFromPayload(payload){
         stockItems:data.stockItems,
         stockCategories:(data.stockCategories&&typeof data.stockCategories==='object')?data.stockCategories:DEFAULT_STOCK_CATEGORIES(),
         myBizInfo:normalizeBizInfo(data.myBizInfo||DEFAULT_BIZ_INFO()),
+        photoSheets:Array.isArray(data.photoSheets)?data.photoSheets:[],   // ★ 추가
         accessSettings:data.accessSettings||null
     };
 }
+/* ════════════ ★ applyAppData — photoSheets 복원 ════════════ */
 function applyAppData(payload){
     const data=getCanonicalAppStateFromPayload(payload);
     customers=data.customers;
@@ -4217,6 +4250,12 @@ function applyAppData(payload){
     stockItems=data.stockItems;
     stockCategories=data.stockCategories;
     myBizInfo=data.myBizInfo;
+
+    // ★ photoSheets 복원
+    if(Array.isArray(data.photoSheets)){
+        photoSheets = data.photoSheets;
+    }
+
     if(data.accessSettings) applyAccessSettingsPayload(data.accessSettings,false);
 
     // ★ 카카오 앱키 Firebase → 로컬 복원
@@ -4230,6 +4269,7 @@ function applyAppData(payload){
         }
     }
 }
+/* ════════════ ★ buildAppData — photoSheets 동기화 포함 ════════════ */
 function buildAppData(){
     const canonical=getCanonicalAppStateFromPayload({
         customers,
@@ -4238,6 +4278,7 @@ function buildAppData(){
         stockItems,
         stockCategories,
         myBizInfo,
+        photoSheets,                          // ★ 추가
         accessSettings:createAccessSettingsSnapshot()
     });
     return {
@@ -4247,6 +4288,7 @@ function buildAppData(){
         stockItems:canonical.stockItems,
         stockCategories:canonical.stockCategories,
         myBizInfo:canonical.myBizInfo,
+        photoSheets: photoSheets || [],        // ★ 추가
         accessSettings:createAccessSettingsSnapshot(),
         kakaoAppKey:loadKakaoAppKey() || null,
         updatedAt:new Date().toISOString()
@@ -4337,7 +4379,7 @@ async function loadCloudData(){
 /* ═══════════════════════════════════════════
    전역 데이터
 ═══════════════════════════════════════════ */
-let customers=[], rentals=[], quotes=[], stockItems=[];
+let customers=[], rentals=[], quotes=[], stockItems=[], photoSheets=[];   // ★ photoSheets 추가
 let myBizInfo={
     globalKakaoLink:'',
     biz1:{bizNum:'',bizName:'',repName:'',address:'',bizType:'',bizItem:'',tel:'',mobile:'',account1:'',account2:'',seal:''},
@@ -6688,6 +6730,7 @@ function moveCalendarToLatestDataMonth(force=false){
         currentCalMonth=parts[1]-1;
     }
 }
+/* ════════════ ★ loadLocalData — photoSheets 로컬 로드 ════════════ */
 async function loadLocalData(){
     const localPayload={
         customers:safeParseJSON(localStorage.getItem(LOCAL_KEYS.customers),[]),
@@ -6696,6 +6739,7 @@ async function loadLocalData(){
         stockItems:safeParseJSON(localStorage.getItem(LOCAL_KEYS.stock),[]),
         stockCategories:safeParseJSON(localStorage.getItem(LOCAL_KEYS.stockCats),DEFAULT_STOCK_CATEGORIES()),
         myBizInfo:normalizeBizInfo(safeParseJSON(localStorage.getItem(LOCAL_KEYS.myInfo),DEFAULT_BIZ_INFO())),
+        photoSheets:safeParseJSON(localStorage.getItem(LOCAL_KEYS.photoSheets),[]),   // ★ 추가
         accessSettings:safeParseJSON(localStorage.getItem(ACCESS_SETTINGS_KEY),null)
     };
     applyAppData(localPayload);
@@ -6721,7 +6765,7 @@ function refreshViews(){
     if(document.getElementById('listArea').style.display!=='none') renderMain(currentCustomerData);
     if(document.getElementById('rentalArea').style.display!=='none'){renderRentals(currentRentalData);renderRentalCollectOverview();}
     if(document.getElementById('globalSearchArea').style.display!=='none'&&kw.trim()) renderGlobalSearchResults(kw.trim());
-    if(document.getElementById('quoteArea').style.display!=='none'){refreshQuoteBizCards();renderQuoteHistory();updateQuoteAccountOptions(document.getElementById('q-account-select')?document.getElementById('q-account-select').value:'');}
+    if(document.getElementById('quoteArea').style.display!=='none'){refreshQuoteBizCards();renderQuoteHistory();renderPhotoSheetHistory();updateQuoteAccountOptions(document.getElementById('q-account-select')?document.getElementById('q-account-select').value:'');}   // ★ renderPhotoSheetHistory 추가
     if(document.getElementById('stockArea').style.display!=='none'){renderStockDash();renderStockTable();}
     if(document.getElementById('calendarArea').style.display!=='none'){renderCalendar();const qd=document.getElementById('q-date').value;if(document.getElementById('day-detail-container').style.display!=='none'&&qd)showDayDetail(qd);}
     if(document.getElementById('totalStatusModal').style.display==='block') renderTotalStatusChart();
@@ -7740,9 +7784,22 @@ function selectServiceStockItem(rowId,stockId){const s=stockItems.find(x=>x.id==
 /* ═══════════════════════════════════════════
    백업/복구
 ═══════════════════════════════════════════ */
-function downloadBackup(){if(!isAdmin()){alert('⛔ 관리자 권한이 필요한 기능입니다.');return;}
-    const b=new Blob([JSON.stringify({list:customers,rentals,quotes,stockItems,stockCategories,myInfo:myBizInfo},null,2)],{type:'application/json'});
-    const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`전체백업_${getKoreanDate()}.json`;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(a.href);
+/* ════════════ ★ downloadBackup — photoSheets 포함 ════════════ */
+function downloadBackup(){
+    if(!isAdmin()){alert('⛔ 관리자 권한이 필요한 기능입니다.');return;}
+    const b=new Blob([JSON.stringify({
+        list:customers,
+        rentals,
+        quotes,
+        stockItems,
+        stockCategories,
+        myInfo:myBizInfo,
+        photoSheets                   // ★ 추가
+    },null,2)],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(b);
+    a.download=`전체백업_${getKoreanDate()}.json`;
+    document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(a.href);
 }
 function importBackup(input){if(!isAdmin()){alert('⛔ 관리자 권한이 필요한 기능입니다.');return;}
     const reader=new FileReader();
@@ -7758,6 +7815,7 @@ function importBackup(input){if(!isAdmin()){alert('⛔ 관리자 권한이 필�
                     if(imp.stockItems)stockItems=Array.isArray(imp.stockItems)?imp.stockItems.filter(Boolean):[];
                     if(imp.stockCategories)stockCategories=imp.stockCategories;
                     if(imp.myInfo)myBizInfo=imp.myInfo;
+                    if(Array.isArray(imp.photoSheets))photoSheets=imp.photoSheets;  // ★ 추가
                 }
                 syncLocalData();alert("데이터 복구 완료!");
             }
@@ -7880,7 +7938,24 @@ function showCalendar(){hideAllTabs();document.getElementById('calendarArea').st
 function showRental(){hideAllTabs();document.getElementById('rentalArea').style.display='block';document.getElementById('tab-rental').classList.add('active-tab');currentRentalPage=1;renderRentals(currentRentalData.length?currentRentalData:rentals);initRentalCollectSelectors();renderRentalCollectOverview();}
 function showUnprocessedPage(){hideAllTabs();document.getElementById('unprocessedArea').style.display='block';document.getElementById('tab-unprocessed-page').classList.add('active-tab');renderUnprocessedSummary();}
 function showProcessedPage(){hideAllTabs();document.getElementById('processedArea').style.display='block';currentProcessedPage=1;renderProcessedSummary();}
-function showQuote(){if(currentUserRole==='staff'){alert('⛔ 직원 권한에서는 접근할 수 없습니다.');return;}hideAllTabs();document.getElementById('quoteArea').style.display='block';document.getElementById('tab-quote').classList.add('active-tab');refreshQuoteBizCards();renderQuoteHistory();updateQuoteAccountOptions();renderQuoteUnpaidSection();if(!document.getElementById('quoteItemBody').children.length){addQuoteRow();addQuoteRow();addQuoteRow();}if(!document.getElementById('q-photo-date').value)document.getElementById('q-photo-date').value=getKoreanDate();syncQuotePhotoSummary();}
+/* ════════════ ★ showQuote — 사진대지 이력 렌더 포함 ════════════ */
+function showQuote(){
+    if(currentUserRole==='staff'){alert('⛔ 직원 권한에서는 접근할 수 없습니다.');return;}
+    hideAllTabs();
+    document.getElementById('quoteArea').style.display='block';
+    document.getElementById('tab-quote').classList.add('active-tab');
+    refreshQuoteBizCards();
+    renderQuoteHistory();
+    renderPhotoSheetHistory();          // ★ 추가
+    updateQuoteAccountOptions();
+    renderQuoteUnpaidSection();
+    if(!document.getElementById('quoteItemBody').children.length){
+        addQuoteRow();addQuoteRow();addQuoteRow();
+    }
+    if(!document.getElementById('q-photo-date').value)
+        document.getElementById('q-photo-date').value=getKoreanDate();
+    syncQuotePhotoSummary();
+}
 function showStock(){if(currentUserRole==='staff'){alert('⛔ 직원 권한에서는 접근할 수 없습니다.');return;}
     hideAllTabs();
     document.getElementById('stockArea').style.display='block';
@@ -9450,48 +9525,294 @@ function collectQuotePhotoSheet(){return{title:document.getElementById('q-photo-
 function loadQuotePhotoSheet(sheet={}){document.getElementById('q-photo-title').value=sheet.title||'';document.getElementById('q-photo-date').value=sheet.shootDate||'';document.getElementById('q-photo-location').value=sheet.location||'';document.getElementById('q-photo-note').value=sheet.note||'';quotePhotoItems=[];quotePhotoRowId=0;(sheet.photos||[]).forEach(photo=>quotePhotoItems.push(createQuotePhotoItem(photo)));renderQuotePhotoList();}
 function clearQuotePhotoSheet(skipConfirm=false){if(!skipConfirm&&quotePhotoItems.length&&!confirm('사진대지 내용을 비울까요?'))return;document.getElementById('q-photo-title').value='';document.getElementById('q-photo-date').value=getKoreanDate();document.getElementById('q-photo-location').value='';document.getElementById('q-photo-note').value='';quotePhotoItems=[];quotePhotoRowId=0;renderQuotePhotoList();if(!skipConfirm)isFormDirty=true;}
 function buildQuotePhotoSheetContext(source){if(source&&source.issueDate!==undefined){return{receiver:source.receiver||'',title:source.title||'',issueDate:source.issueDate||getKoreanDate(),photoSheet:source.photoSheet||{}};}return{receiver:document.getElementById('q-receiver').value.trim(),title:document.getElementById('q-title').value.trim(),issueDate:document.getElementById('q-issue-date').value||getKoreanDate(),photoSheet:collectQuotePhotoSheet()};}
-function printQuotePhotoSheet(source=null){
-    const ctx=buildQuotePhotoSheetContext(source);
-    const sheet=ctx.photoSheet||{};
-    const photos=(sheet.photos||[]).filter(p=>p.image);
-    if(!photos.length)return alert('사진대지에 출력할 사진을 1장 이상 첨부해 주세요.');
-    const docTitle=sheet.title||ctx.title||'사진대지';
-    const note=sheet.note||'';
-    const totalPages=Math.ceil(photos.length/4);
-    const pages=Array.from({length:totalPages},(_,pageIdx)=>{
-        const chunk=photos.slice(pageIdx*4,pageIdx*4+4);
-        const cells=Array.from({length:4},(_,slotIdx)=>{
-            const photo=chunk[slotIdx];
-            if(!photo){
-                return `<div class="ps-cell ps-cell-empty"></div>`;
-            }
-            const titleText=escapeHtml(photo.title||`사진 ${pageIdx*4+slotIdx+1}`);
-            const memoText=escapeHtml(photo.memo||'-');
-            return `<div class="ps-cell"><div class="ps-cell-head"><div class="ps-cell-label">사진정보</div><div class="ps-cell-text">${titleText}</div></div><div class="ps-image-wrap"><img src="${photo.image}" alt="사진 ${pageIdx*4+slotIdx+1}"></div><div class="ps-cell-foot"><div class="ps-foot-label">비고</div><div class="ps-foot-text">${memoText}</div></div></div>`;
-        }).join('');
-        return `<section class="ps-page${pageIdx<totalPages-1?' page-break':''}"><div class="ps-title">사 진 대 지</div><div class="ps-sheet"><table class="ps-meta"><tr><th>견 적 명</th><td>${escapeHtml(ctx.title||'-')}</td><th>수 신 처</th><td>${escapeHtml(ctx.receiver||'-')}</td></tr><tr><th>사진대지명</th><td>${escapeHtml(docTitle)}</td><th>작 성 일 자</th><td>${escapeHtml(ctx.issueDate||getKoreanDate())}</td></tr><tr><th>상 단 정 보</th><td colspan="3">${escapeHtml(note||'-')}</td></tr></table><div class="ps-grid four">${cells}</div></div>${totalPages>1?`<div class="ps-page-no">${pageIdx+1} / ${totalPages}</div>`:''}</section>`;
-    }).join('');
-    const pop=window.open('','_blank')||window.open('','qPhotoSheet',`width=980,height=1100,scrollbars=yes,resizable=yes`);
-    if(!pop){alert('인쇄 창을 열 수 없습니다. 팝업 허용 후 다시 시도해 주세요.');return;}
-    pop.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=yes,viewport-fit=cover"><title>사진대지</title><style>@page{size:A4 portrait;margin:8mm}*{box-sizing:border-box}html{-webkit-text-size-adjust:100%;print-color-adjust:exact;-webkit-print-color-adjust:exact;}body{font-family:'Malgun Gothic','Dotum',sans-serif;font-size:12px;margin:0;padding:0;background:#fff;color:#111}.ps-page{width:100%;max-width:194mm;min-height:278mm;margin:0 auto;position:relative;display:flex;flex-direction:column}.page-break{page-break-after:always}.ps-title{text-align:center;font-size:24px;font-weight:800;letter-spacing:12px;margin:2mm 0 3mm;color:#111}.ps-sheet{border:1.5px solid #222;padding:0;flex:1;display:flex;flex-direction:column}.ps-meta{width:100%;border-collapse:collapse;table-layout:fixed}.ps-meta th,.ps-meta td{border:1px solid #222;padding:6px 8px;height:30px;font-size:12px;vertical-align:middle}.ps-meta th{width:18%;background:#f6f6f6!important;font-weight:700}.ps-grid{display:grid;flex:1;border-top:0;min-height:210mm}.ps-grid.four{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}.ps-cell{border-top:1px solid #222;display:flex;flex-direction:column;min-height:0}.ps-grid .ps-cell:nth-child(2n){border-left:1px solid #222}.ps-grid .ps-cell:nth-child(n+3){border-top:1px solid #222}.ps-cell-head,.ps-cell-foot{display:grid;grid-template-columns:64px 1fr;min-height:30px}.ps-cell-head{border-bottom:1px solid #222}.ps-cell-foot{border-top:1px solid #222}.ps-cell-label,.ps-foot-label{display:flex;align-items:center;justify-content:center;border-right:1px solid #222;background:#fafafa;font-weight:700}.ps-cell-text,.ps-foot-text{padding:6px 8px;display:flex;align-items:center;line-height:1.4;white-space:pre-line;word-break:break-word}.ps-image-wrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:8px;background:#fff}.ps-image-wrap img{width:100%;height:100%;max-width:100%;max-height:100%;object-fit:contain;border:1px solid #d0d0d0}.ps-cell-empty{background:#fff}.ps-page-no{text-align:right;font-size:11px;color:#555;padding-top:2mm}@media print{body{background:#fff}.ps-page{max-width:none;width:100%;min-height:auto}.ps-page-no{position:static}}
-        .role-action-btn{display:none;align-items:center;gap:4px;}
-        .access-modal{display:none;position:fixed;inset:0;background:rgba(15,23,42,.52);z-index:100000;align-items:center;justify-content:center;padding:16px;}
-        .access-modal-card{width:min(760px,96vw);max-height:92vh;overflow:auto;background:#fff;border-radius:18px;box-shadow:0 18px 55px rgba(15,23,42,.28);padding:22px;}
-        .access-modal h3{margin:0 0 6px;color:#1a73e8;}
-        .access-modal p{margin:0;color:#667085;font-size:13px;}
-        .access-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:18px;}
-        .access-box{border:1px solid #e5e7eb;border-radius:12px;padding:14px;background:#fafbfc;}
-        .access-box h4{margin:0 0 10px;font-size:14px;color:#111827;}
-        .access-box label{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:13px;color:#374151;font-weight:500;}
-        .access-box input[type='checkbox']{width:auto;}
-        .pin-edit-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px;}
-        .pin-edit-row .form-item{background:#fafbfc;border:1px solid #e5e7eb;border-radius:12px;padding:12px;}
-        .modal-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:18px;}
-        .muted-help{font-size:12px;color:#6b7280;margin-top:8px;line-height:1.45;}
-        .readonly-lock{background:#f3f4f6 !important;cursor:not-allowed !important;}
-        @media(max-width:720px){.access-grid,.pin-edit-row{grid-template-columns:1fr;}}
+/* ════════════════════════════════════════════════════════════════════
+   ★ 사진대지 독립 저장 / 이력 관리 (신규)
+   ════════════════════════════════════════════════════════════════════ */
+function saveQuotePhotoSheetStandalone(source=null){
+    const ctx = buildQuotePhotoSheetContext(source);
+    const sheet = ctx.photoSheet || {};
+    const photos = (sheet.photos||[]).filter(p=>p.image);
 
-    </style></head><body>${pages}<script>(function(){const isMobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);if(!isMobile){setTimeout(()=>{window.focus();(function(){ if(window.AndroidPrint){window.AndroidPrint.print();}else{window.print();} })();},400);}})();<\/script></body></html>`);
+    if(!photos.length){
+        alert('저장할 사진이 없습니다.\n사진을 1장 이상 첨부해 주세요.');
+        return;
+    }
+
+    const existingIdx = editingQuoteIndex !== null
+        ? editingQuoteIndex
+        : null;
+
+    // 이미 저장된 견적이 있으면 거기에 photoSheet 업데이트
+    if(existingIdx !== null && quotes[existingIdx]){
+        quotes[existingIdx].photoSheet  = sheet;
+        quotes[existingIdx].photoCount  = photos.length;
+        quotes[existingIdx].updatedAt   = Date.now();
+        syncLocalData();
+        renderQuoteHistory();
+        showAlarmToast(`✅ 사진대지 저장 완료! (견적 No.${quotes[existingIdx].no} 업데이트)`, 'success');
+        return;
+    }
+
+    // 독립 사진대지로 photoSheets 배열에 저장
+    const newId = Date.now();
+    const newNo = (photoSheets.length || 0) + 1;
+    photoSheets.push({
+        id:         newId,
+        no:         newNo,
+        savedAt:    getKoreanDate(),
+        title:      sheet.title || ctx.title || '사진대지',
+        shootDate:  sheet.shootDate || '',
+        location:   sheet.location || '',
+        note:       sheet.note || '',
+        receiver:   ctx.receiver || '',
+        photos:     photos,
+        photoCount: photos.length
+    });
+
+    syncLocalData();
+    renderPhotoSheetHistory();
+    showAlarmToast(`✅ 사진대지 저장 완료! (사진 ${photos.length}장, No.${newNo})`, 'success');
+}
+
+/* ════════════ ★ 사진대지 이력 렌더 ════════════ */
+function renderPhotoSheetHistory(){
+    const tb = document.getElementById('photoSheetHistoryBody');
+    if(!tb) return;
+    tb.innerHTML='';
+    if(!photoSheets.length){
+        tb.innerHTML='<tr><td colspan="6" style="color:#999;padding:18px;">저장된 사진대지가 없습니다.</td></tr>';
+        return;
+    }
+    photoSheets.slice().reverse().forEach((ps,i)=>{
+        const realIdx = photoSheets.length - 1 - i;
+        const row = tb.insertRow();
+        row.innerHTML=`
+            <td><b>${ps.no}</b></td>
+            <td>${ps.savedAt||'-'}</td>
+            <td style="text-align:left;"><b>${escapeHtml(ps.title||'-')}</b>${ps.receiver?`<div style="font-size:11px;color:#888;">${escapeHtml(ps.receiver)}</div>`:''}</td>
+            <td><span class="quote-photo-count-badge">📷 ${ps.photoCount||0}장</span></td>
+            <td style="font-size:11px;color:#666;">${escapeHtml(ps.location||'-')}</td>
+            <td style="display:flex;gap:3px;justify-content:center;flex-wrap:wrap;">
+                <button class="btn-action" style="background:#1565c0;color:white;" onclick="printPhotoSheetById(${realIdx})">🖼️인쇄</button>
+                <button class="btn-action" style="background:var(--primary);color:white;" onclick="loadPhotoSheetToForm(${realIdx})">📋불러오기</button>
+                <button class="btn-action" style="color:red;background:white;border:1px solid red;" onclick="deletePhotoSheet(${realIdx})">삭제</button>
+            </td>`;
+    });
+}
+
+function printPhotoSheetById(idx){
+    const ps = photoSheets[idx];
+    if(!ps) return;
+    printQuotePhotoSheet({
+        receiver:   ps.receiver || '',
+        title:      ps.title || '',
+        issueDate:  ps.shootDate || ps.savedAt || getKoreanDate(),
+        photoSheet: ps
+    });
+}
+
+function loadPhotoSheetToForm(idx){
+    const ps = photoSheets[idx];
+    if(!ps) return;
+    loadQuotePhotoSheet(ps);
+    showAlarmToast('📋 사진대지를 불러왔습니다. 수정 후 다시 저장하세요.','success');
+    window.scrollTo({top: document.querySelector('.quote-photo-section')?.offsetTop - 60 || 0, behavior:'smooth'});
+}
+
+function deletePhotoSheet(idx){
+    if(!confirm('이 사진대지를 삭제하시겠습니까?')) return;
+    photoSheets.splice(idx, 1);
+    photoSheets.forEach((ps,i)=>ps.no=i+1);
+    syncLocalData();
+    renderPhotoSheetHistory();
+    showAlarmToast('🗑️ 사진대지가 삭제되었습니다.','info');
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   ★ printQuotePhotoSheet() — 견적서 인쇄와 동일한 툴바/스타일 구조로 교체
+   ════════════════════════════════════════════════════════════════════ */
+function printQuotePhotoSheet(source=null){
+    const ctx = buildQuotePhotoSheetContext(source);
+    const sheet = ctx.photoSheet || {};
+    const photos = (sheet.photos||[]).filter(p=>p.image);
+    if(!photos.length) return alert('사진대지에 출력할 사진을 1장 이상 첨부해 주세요.');
+
+    const docTitle = sheet.title || ctx.title || '사진대지';
+    const note     = sheet.note || '';
+    const totalPages = Math.ceil(photos.length/4);
+
+    const pages = Array.from({length:totalPages},(_,pageIdx)=>{
+        const chunk = photos.slice(pageIdx*4, pageIdx*4+4);
+        const cells = Array.from({length:4},(_,slotIdx)=>{
+            const photo = chunk[slotIdx];
+            if(!photo) return `<div class="ps-cell ps-cell-empty"></div>`;
+            const titleText = escapeHtml(photo.title||`사진 ${pageIdx*4+slotIdx+1}`);
+            const memoText  = escapeHtml(photo.memo||'-');
+            return `<div class="ps-cell">
+                <div class="ps-cell-head">
+                    <div class="ps-cell-label">사진정보</div>
+                    <div class="ps-cell-text">${titleText}</div>
+                </div>
+                <div class="ps-image-wrap">
+                    <img src="${photo.image}" alt="사진 ${pageIdx*4+slotIdx+1}">
+                </div>
+                <div class="ps-cell-foot">
+                    <div class="ps-foot-label">비고</div>
+                    <div class="ps-foot-text">${memoText}</div>
+                </div>
+            </div>`;
+        }).join('');
+        return `<section class="ps-page${pageIdx<totalPages-1?' page-break':''}">
+            <div class="ps-title">사 진 대 지</div>
+            <div class="ps-sheet">
+                <table class="ps-meta">
+                    <tr>
+                        <th>견 적 명</th><td>${escapeHtml(ctx.title||'-')}</td>
+                        <th>수 신 처</th><td>${escapeHtml(ctx.receiver||'-')}</td>
+                    </tr>
+                    <tr>
+                        <th>사진대지명</th><td>${escapeHtml(docTitle)}</td>
+                        <th>작 성 일 자</th><td>${escapeHtml(ctx.issueDate||getKoreanDate())}</td>
+                    </tr>
+                    <tr>
+                        <th>상 단 정 보</th><td colspan="3">${escapeHtml(note||'-')}</td>
+                    </tr>
+                </table>
+                <div class="ps-grid four">${cells}</div>
+            </div>
+            ${totalPages>1?`<div class="ps-page-no">${pageIdx+1} / ${totalPages}</div>`:''}
+        </section>`;
+    }).join('');
+
+    /* ── 공통 CSS (견적서 인쇄와 동일한 스타일 구조) ── */
+    const psCSS = `
+@page{size:A4 portrait;margin:8mm}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;font-family:'Malgun Gothic','Dotum',sans-serif;color:#000;font-size:12px;}
+body{padding:0;}
+
+/* ── 툴바 (견적서와 동일한 방식) ── */
+#ps-toolbar{
+    position:fixed;top:0;left:0;right:0;
+    background:white;border-bottom:2px solid #1565c0;
+    padding:8px 14px;
+    display:flex;gap:6px;align-items:center;flex-wrap:wrap;
+    z-index:9999;min-height:52px;
+}
+#ps-toolbar .toolbar-title{
+    font-size:13px;font-weight:bold;color:#1565c0;
+    flex:1;min-width:80px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+#ps-toolbar button{
+    border:none;border-radius:7px;
+    padding:8px 14px;font-size:13px;font-weight:bold;cursor:pointer;white-space:nowrap;flex-shrink:0;
+}
+.btn-print-ps{background:#1565c0;color:white;}
+.btn-close-ps{background:#f1f3f4;color:#333;border:1px solid #ddd;}
+
+/* ── 본문 영역 ── */
+#ps-content{margin-top:58px;padding:12px 14px 20px;}
+
+/* ── 사진대지 레이아웃 ── */
+.ps-page{width:100%;max-width:194mm;margin:0 auto;position:relative;display:flex;flex-direction:column;min-height:278mm;}
+.page-break{page-break-after:always;}
+.ps-title{text-align:center;font-size:24px;font-weight:800;letter-spacing:12px;margin:2mm 0 3mm;color:#111;}
+.ps-sheet{border:1.5px solid #222;padding:0;flex:1;display:flex;flex-direction:column;}
+.ps-meta{width:100%;border-collapse:collapse;table-layout:fixed;}
+.ps-meta th,.ps-meta td{border:1px solid #222;padding:6px 8px;height:30px;font-size:12px;vertical-align:middle;}
+.ps-meta th{width:18%;background:#f6f6f6!important;-webkit-print-color-adjust:exact;font-weight:700;}
+.ps-grid{display:grid;flex:1;border-top:0;min-height:210mm;}
+.ps-grid.four{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;}
+.ps-cell{border-top:1px solid #222;display:flex;flex-direction:column;min-height:0;}
+.ps-grid .ps-cell:nth-child(2n){border-left:1px solid #222;}
+.ps-grid .ps-cell:nth-child(n+3){border-top:1px solid #222;}
+.ps-cell-head,.ps-cell-foot{display:grid;grid-template-columns:64px 1fr;min-height:30px;}
+.ps-cell-head{border-bottom:1px solid #222;}
+.ps-cell-foot{border-top:1px solid #222;}
+.ps-cell-label,.ps-foot-label{display:flex;align-items:center;justify-content:center;border-right:1px solid #222;background:#fafafa;font-weight:700;}
+.ps-cell-text,.ps-foot-text{padding:6px 8px;display:flex;align-items:center;line-height:1.4;white-space:pre-line;word-break:break-word;}
+.ps-image-wrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:8px;background:#fff;}
+.ps-image-wrap img{width:100%;height:100%;max-width:100%;max-height:100%;object-fit:contain;border:1px solid #d0d0d0;}
+.ps-cell-empty{background:#fff;}
+.ps-page-no{text-align:right;font-size:11px;color:#555;padding-top:2mm;}
+html{-webkit-text-size-adjust:100%;print-color-adjust:exact;-webkit-print-color-adjust:exact;}
+
+@media print{
+    #ps-toolbar{display:none!important;}
+    #ps-content{margin-top:0!important;padding:0!important;}
+    body{padding:0;background:#fff;}
+    .ps-page{max-width:none;width:100%;min-height:auto;}
+    .ps-page-no{position:static;}
+}
+
+@media screen and (max-width:768px){
+    @page{size:auto;margin:8mm;}
+    #ps-content{margin-top:68px;padding:10px;}
+    #ps-toolbar{padding:7px 10px;gap:5px;}
+    #ps-toolbar button{padding:7px 10px;font-size:12px;}
+    .ps-page{max-width:100%;width:100%;min-height:auto;}
+    .ps-title{font-size:18px;letter-spacing:5px;}
+    .ps-meta th,.ps-meta td{font-size:10px;padding:4px 5px;}
+    .ps-grid.four{grid-template-columns:1fr;grid-template-rows:auto;}
+    .ps-cell-head,.ps-cell-foot{grid-template-columns:56px 1fr;}
+    .ps-image-wrap{min-height:200px;}
+}`;
+
+    const safeTitle = (docTitle||'사진대지').replace(/[\\/:*?"<>|]/g,'').trim()||'사진대지';
+
+    const fullHTML = `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=yes,viewport-fit=cover">
+<title>사진대지 - ${escapeHtml(safeTitle)}</title>
+<style>${psCSS}</style>
+</head>
+<body>
+<div id="ps-toolbar">
+    <div class="toolbar-title">🖼️ 사진대지 | ${escapeHtml(safeTitle)}</div>
+    <button class="btn-print-ps"
+            onclick="(function(){ if(window.AndroidPrint){window.AndroidPrint.print();}else{window.print();} })()">
+        🖨️ 인쇄 / PDF 저장
+    </button>
+    <button class="btn-close-ps" onclick="window.close()">✕ 닫기</button>
+</div>
+<div id="ps-content">
+${pages}
+</div>
+<script>
+(function(){
+    var isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || window.innerWidth <= 768;
+    if(!isMobile){
+        window.onload = function(){
+            setTimeout(function(){
+                (function(){ if(window.AndroidPrint){window.AndroidPrint.print();}else{window.print();} })();
+            }, 350);
+        };
+        window.onafterprint = function(){ window.close(); };
+    }
+})();
+<\/script>
+</body></html>`;
+
+    /* 팝업 열기 (견적서와 동일한 방식) */
+    const pw=980, ph=1100,
+          l=Math.ceil((screen.width-pw)/2),
+          t=Math.ceil((screen.height-ph)/2);
+
+    const pop = window.open('','_blank') ||
+                window.open('','psWin',`width=${pw},height=${ph},left=${l},top=${t},scrollbars=yes,resizable=yes`);
+
+    if(!pop){
+        /* 팝업 차단 시 오버레이 방식 fallback */
+        if(typeof printWithOverlay === 'function'){
+            printWithOverlay(fullHTML.replace(/<style>[\s\S]*?<\/style>/,`<style>${psCSS}<\/style>`));
+        }else{
+            alert('인쇄 창을 열 수 없습니다. 팝업 허용 후 다시 시도해 주세요.');
+        }
+        return;
+    }
+    pop.document.write(fullHTML);
     pop.document.close();
 }
 function printQuotePhotoSheetById(idx){const q=quotes[idx];if(!q)return;printQuotePhotoSheet(q);}
@@ -15583,6 +15904,7 @@ function openInChrome() {
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/vcd15cbe7772f49c399c6a5babf22c1241717689176015" integrity="sha512-ZpsOmlRQV6y907TI0dKBHq9Md29nnaEIPlkf84rnaERnq6zvWvPUqr2ft8M1aS28oN72PdrCzSjY4U6VaAw1EQ==" data-cf-beacon='{"rayId":"9fb18930984fe879","serverTiming":{"name":{"cfExtPri":true,"cfEdge":true,"cfOrigin":true,"cfL4":true,"cfSpeedBrain":true,"cfCacheStatus":true}},"version":"2025.9.1","token":"4edd5f8ec12a48cfa682ab8261b80a79"}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
